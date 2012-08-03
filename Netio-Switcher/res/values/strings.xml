@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Switcher für NetIO-230B</string>
+    <string name="view_empty">kein Event angelegt</string>
+    <string name="menu_config">Konfiguration</string>
+    <string name="menu_start">Verbinden</string>
+    <string name="menu_stop">Trennen</string>
+    <string name="menu_eventNew">Event anlegen</string>
+    <string name="menu_eventDel">Event löschen</string>
+    <string name="cfg_steckdose">Zugriff auf Steckdose</string>
+    <string name="cfg_ip_short">Internet-Adresse</string>
+    <string name="cfg_ip_long">Entweder lokale IP wie 192.168.1.60 oder von außen erreichbare
+    	URL beispielsweise über dyndns.org.</string>
+    <string name="cfg_username_short">Username</string>
+    <string name="cfg_password_short">Passwort</string>
+    <string name="cfg_kshell_short">KSHELL-Port</string>
+    <string name="cfg_autoconnect_short">Beim Start verbinden</string>
+    <string name="cfg_autoconnect_long">Mit dieser Steckdose beim App-Start verbinden</string>
+    <string name="cfg_timeout_short">Timeout (in Sekunden)</string>
+    <string name="cfg_timeout_long">Im lokalen Netz reicht 1 s, bei Zugriffen 
+    	von außen per UMTS auf eine Dyndns-IP sollten es 5 bis 10 Sekunden sein.</string>
+	<string name="event_name">Name</string>
+	<string name="event_aktiv">aktiv</string>
+	<string name="event_typ">Typ</string>
+	<string name="event_output">Schalterstellung\n(0=aus, 1=ein, i=Interrupt, u=unverändert)</string>
+	<string name="event_speichern">Speichern</string>
+	<string-array name="event_typenames">
+		<item>WLAN betreten</item> 
+		<item>WLAN verlassen</item>
+	</string-array>
+</resources>

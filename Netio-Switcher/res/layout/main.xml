@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:weightSum="1">
+
+<RelativeLayout 
+	android:id="@+id/dose" 
+	android:layout_width="match_parent" 
+	android:layout_height="wrap_content"
+	android:background="@drawable/rahmen"
+	android:padding="5sp"
+	android:layout_margin="2sp"
+>
+		
+    <TextView 
+    	android:textAppearance="?android:attr/textAppearanceMedium" 
+    	android:text="verbinde..." 
+    	android:id="@+id/textView0" 
+    	android:layout_width="fill_parent" 
+    	android:layout_height="wrap_content"
+    	android:gravity="center_horizontal"
+    	android:paddingBottom="10sp"
+    />
+    <TextView 
+    	android:textAppearance="?android:attr/textAppearanceLarge" 
+    	android:text="" 
+    	android:id="@+id/textView2" 
+    	android:layout_width="wrap_content" 
+    	android:layout_height="wrap_content"
+		android:layout_below="@id/textView0"
+    	android:layout_centerHorizontal="true"
+    />
+
+	<ToggleButton 
+		android:textOn="2" 
+		android:textOff="2" 
+		android:enabled="false"
+		android:id="@+id/toggleButton2" 
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toLeftOf="@id/textView2"
+		android:layout_alignTop="@id/textView2"
+	/>
+	<ToggleButton 
+		android:textOn="1"
+		android:textOff="1" 
+		android:enabled="false"
+		android:id="@+id/toggleButton1" 
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toLeftOf="@id/toggleButton2"
+		android:layout_alignTop="@id/textView2"
+	/>
+	<ToggleButton 
+		android:textOn="3" 
+		android:textOff="3" 
+		android:enabled="false"
+		android:id="@+id/toggleButton3" 
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toRightOf="@id/textView2"
+		android:layout_alignTop="@id/textView2"
+	/>
+	<ToggleButton 
+		android:textOn="4" 
+		android:textOff="4" 
+		android:enabled="false"
+		android:id="@+id/toggleButton4" 
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toRightOf="@id/toggleButton3"
+		android:layout_alignTop="@id/textView2"
+	/>
+
+	<Button
+		android:id="@+id/button1" 
+		android:text="alle ein"
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toLeftOf="@id/textView2"
+		android:layout_below="@id/toggleButton2"
+		android:layout_marginTop="5sp"
+	/>
+	<Button
+		android:id="@+id/button2" 
+		android:text="alle aus"
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content"
+		android:layout_toRightOf="@id/textView2"
+		android:layout_below="@id/toggleButton3"
+		android:layout_marginTop="5sp"
+	/>
+
+    <TextView 
+    	android:textAppearance="?android:attr/textAppearanceSmall" 
+    	android:text="..." 
+    	android:id="@+id/textView1" 
+    	android:layout_width="wrap_content" 
+    	android:layout_height="wrap_content"
+		android:layout_below="@id/button1"
+    	android:layout_centerHorizontal="true"
+    	android:visibility="gone"
+    />
+
+</RelativeLayout>
+<TextView 
+    android:id="@+id/textView3"
+    android:text="Events:"
+    style="?android:attr/listSeparatorTextViewStyle"
+    android:layout_width="fill_parent" 
+	android:layout_height="wrap_content"
+	android:layout_marginTop="4sp"
+    />
+<ListView 
+	android:id="@android:id/list" 
+	android:layout_height="wrap_content" 
+	android:layout_width="fill_parent"
+	/>
+<TextView android:id="@android:id/empty"
+	android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:gravity="center"
+    android:text="@string/view_empty"
+    />
+	
+</LinearLayout>

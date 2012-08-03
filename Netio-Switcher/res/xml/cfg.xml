@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+<PreferenceCategory android:title="@string/cfg_steckdose">
+    <CheckBoxPreference 
+    	android:title="@string/cfg_autoconnect_short" 
+    	android:summary="@string/cfg_autoconnect_long" 
+    	android:key="autoconnect" />
+    <EditTextPreference 
+    	android:summary="@string/cfg_ip_long" 
+    	android:title="@string/cfg_ip_short" 
+    	android:key="ip" />
+    <EditTextPreference 
+    	android:title="@string/cfg_username_short" 
+    	android:key="username"
+    	android:defaultValue="admin" />
+    <EditTextPreference 
+    	android:title="@string/cfg_password_short" 
+    	android:key="password"
+    	android:defaultValue="admin" />
+    <EditTextPreference 
+    	android:title="@string/cfg_kshell_short" 
+    	android:key="kshell"
+    	android:defaultValue="1234" />
+    <EditTextPreference 
+    	android:title="@string/cfg_timeout_short" 
+    	android:summary="@string/cfg_timeout_long" 
+    	android:key="timeout"
+    	android:defaultValue="5" />
+</PreferenceCategory>    
+</PreferenceScreen>

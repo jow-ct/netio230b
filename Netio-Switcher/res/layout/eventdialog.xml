@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:orientation="vertical"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+	<TextView 
+		android:id="@+id/textView1" 
+		android:text="@string/event_name" 
+		android:layout_height="wrap_content" 
+		android:layout_width="wrap_content" 
+		android:layout_alignParentTop="true" 
+		android:layout_alignParentLeft="true" />
+    <EditText 
+    	android:id="@+id/editText1" 
+    	android:layout_below="@+id/textView1" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" 
+    	android:layout_alignParentRight="true" />
+    <CheckBox 
+    	android:id="@+id/checkBox1" 
+    	android:text="@string/event_aktiv"
+    	android:layout_below="@+id/editText1" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" />
+    <TextView 
+    	android:id="@+id/textView2" 
+    	android:text="@string/event_typ" 
+    	android:layout_below="@+id/checkBox1" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" />
+    <Spinner 
+    	android:id="@+id/spinner1" 
+    	android:layout_below="@+id/textView2"
+    	android:entries="@array/event_typenames"
+    	android:prompt="@string/event_typ" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentRight="true"
+    	android:layout_alignParentLeft="true" />
+    <TextView 
+    	android:id="@+id/textView3" 
+    	android:text="" 
+    	android:layout_below="@+id/spinner1" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" />
+    <EditText 
+    	android:id="@+id/editText2" 
+    	android:layout_below="@+id/textView3"
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" 
+    	android:layout_alignParentRight="true" />
+    <TextView 
+    	android:id="@+id/textView4" 
+    	android:text="" 
+    	android:layout_below="@+id/editText2" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" />
+    <EditText 
+    	android:id="@+id/editText3" 
+    	android:layout_below="@+id/textView4" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" 
+    	android:layout_alignParentRight="true" />
+    <TextView 
+    	android:id="@+id/textView5" 
+    	android:text="@string/event_output" 
+    	android:layout_below="@+id/editText3" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" />
+    <EditText 
+    	android:id="@+id/editText4" 
+    	android:layout_below="@+id/textView5" 
+    	android:layout_height="wrap_content" 
+    	android:layout_width="wrap_content" 
+    	android:layout_alignParentLeft="true" 
+    	android:layout_alignParentRight="true" />
+    <Button 
+    	android:id="@+id/button1" 
+	  	android:text="@string/event_speichern"
+    	android:layout_below="@+id/editText4"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content" />
+    
+</RelativeLayout>
