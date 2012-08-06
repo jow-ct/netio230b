@@ -1,23 +1,25 @@
 package de.jockels.netioswitch;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ContentValues;
+import android.content.DialogInterface;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-/**
- * @author Jockel
- *
- */
 /**
  * @author Jockel
  *
@@ -29,6 +31,9 @@ public class EventEdit extends Activity {
 	private CheckBox active1;
 	private Spinner typ1;
 	private Button save1;
+	
+	private boolean changed = false;
+	private TextWatcher watcher;
 	
 	private Long mRow;
 	private EventDb mDb; 
@@ -43,6 +48,7 @@ public class EventEdit extends Activity {
 		mDb = new EventDb(this);
 		mDb.open();
 		
+		// Elemente finden
 		setContentView(R.layout.eventdialog);
 		name1 = (EditText)findViewById(R.id.editText1);
 		active1 = (CheckBox)findViewById(R.id.checkBox1);
@@ -51,15 +57,37 @@ public class EventEdit extends Activity {
 		ext1 = (EditText)findViewById(R.id.editText2);
 		label2 = (TextView)findViewById(R.id.textView4);
 		ext2 = (EditText)findViewById(R.id.editText3);
-		save1 = (Button)findViewById(R.id.button1);
 		out1 = (EditText)findViewById(R.id.editText4);
+		save1 = (Button)findViewById(R.id.button1);
 		
+		// Listener setzen
+
+		// Änderungen mitbekommen
+		watcher = new TextWatcher() {
+			public void afterTextChanged(Editable s) { onChanged(); }
+			public void onTextChanged(CharSequence s, int start, int before, int count) { }
+			public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+		};
+		name1.addTextChangedListener(watcher);
+		ext1.addTextChangedListener(watcher);
+		ext2.addTextChangedListener(watcher);
+		out1.addTextChangedListener(watcher);
+		active1.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+			public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) { onChanged(); }
+		});
+		
+		// neuer Typ bewirkt, dass geänderte Namen angezeigt werden
 		typ1.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+			int oldpos = -1;
 			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
 				switchNames(position);
+				if (oldpos!=-1) onChanged();
+				oldpos = position;
 			}
 			public void onNothingSelected(AdapterView<?> arg0) { }
 		});
+		
+		// Klick auf Save bewirkt, dass der Dialog beendet wird
 		save1.setOnClickListener(new View.OnClickListener() {
 			public void onClick(View v) {
 				if (DEBUG) Log.v(TAG, "save.onClick");
@@ -67,13 +95,13 @@ public class EventEdit extends Activity {
 				finish();
 			}
 		});
-
+		
+		// Inhalt ggf. aus savedInstanceState auffüllen
 		mRow = savedInstanceState==null ? null : (Long)savedInstanceState.getSerializable(EventDb.ID);
 		if (mRow==null) {
 			Bundle extras = getIntent().getExtras();
 			mRow = extras == null ? null : extras.getLong(EventDb.ID);
 		}
-		populateFields();
 	}
 
 	
@@ -84,8 +112,31 @@ public class EventEdit extends Activity {
 
 	
 	@Override public void onBackPressed() {
-		super.onBackPressed();
-		// TODO "sollen Änderungen nicht gespeichert werden?"
+		if (changed) {
+			Log.v(TAG, "änderungen!!");
+			new AlertDialog.Builder(this)
+			.setTitle("Event-Daten geändert")
+			.setMessage("Wollen Sie die Änderungen wirklich verwerfen?")
+			.setCancelable(false)
+			.setPositiveButton("Verwerfen", new DialogInterface.OnClickListener() {
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.cancel();
+					onResetChanged();
+					onBackPressed();
+				}})
+			.setNegativeButton("Speichern", new DialogInterface.OnClickListener() {
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.cancel();
+					saveState();
+					onBackPressed();
+			}})
+			.setNeutralButton("Abbrechen", new DialogInterface.OnClickListener() {
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.cancel();
+			}})
+			.show();
+		} else 
+			super.onBackPressed();
 	}
 
 
@@ -95,7 +146,19 @@ public class EventEdit extends Activity {
 	}
 
 
+	// ein Edit-Dings gibt bekannt, dass was geändert wurde
+	private void onChanged() {
+		changed = true;
+	}
+	
+	
+	// neue Daten geladen, Änderungen zurücksetzen 
+	private void onResetChanged() {
+		changed = false;
+	}
+
 	private void populateFields() {
+		if (DEBUG) Log.v(TAG, "populateFields");
 		if (mRow==null) {
 			setTitle("neuen Event anlegen");
 			active1.setChecked(true);
@@ -112,6 +175,7 @@ public class EventEdit extends Activity {
 			out1.setText(event.getString(event.getColumnIndex(EventDb.OUTPUT)));
 		}
 		switchNames(typ1.getSelectedItemPosition());
+		onResetChanged();
 	}
 
 	
@@ -137,13 +201,14 @@ public class EventEdit extends Activity {
 		} else {
 			mDb.updateEvents(v, EventDb.ID+"="+mRow);
 		}
+		onResetChanged();
 	}
 
 	
 	@Override
 	protected void onPause() {
 		super.onPause();
-		saveState();
+		if (changed) saveState();
 	}
 
 
