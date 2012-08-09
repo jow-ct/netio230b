@@ -71,9 +71,30 @@ public class EventEdit extends Activity {
 		name1.addTextChangedListener(watcher);
 		ext1.addTextChangedListener(watcher);
 		ext2.addTextChangedListener(watcher);
-		out1.addTextChangedListener(watcher);
 		active1.setOnCheckedChangeListener(new OnCheckedChangeListener() {
 			public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) { onChanged(); }
+		});
+		
+		// Validierung
+		out1.addTextChangedListener(new TextWatcher() {
+			public void afterTextChanged(Editable s) { 
+				// TODO über Filter o.ä.
+				int i = 0;
+				while (i<s.length()) {
+					char c = s.charAt(i);
+					if (c=='1' || c=='0' || c=='i' || c=='u')
+						i++;
+					else {
+						s.delete(i, i+1);
+					}
+				}
+				onChanged();
+			}
+			public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+			public void onTextChanged(CharSequence s, int start, int before, int count) {
+				// TODO Abfrage beim Speichern
+				out1.setError( s.length()==4 ? null : "genau vier Zeichen, nur 0, 1, i, u erlaubt");
+			}
 		});
 		
 		// neuer Typ bewirkt, dass geänderte Namen angezeigt werden
@@ -194,7 +215,7 @@ public class EventEdit extends Activity {
 		
 		if (mRow == null) {
 			// Speichern nur, wenn Name&Output eingegeben wurden
-			if (!TextUtils.isEmpty(n1) && !TextUtils.isEmpty(o1)) {
+			if (!TextUtils.isEmpty(n1)) {
 				long id = mDb.insertOrThrowEvent(v);
 				if (id > 0) mRow = id;
 			}
@@ -208,7 +229,7 @@ public class EventEdit extends Activity {
 	@Override
 	protected void onPause() {
 		super.onPause();
-		if (changed) saveState();
+		if (changed) saveState(); // ohne if (changed) entstehen sonst leere Einträge
 	}
 
 
