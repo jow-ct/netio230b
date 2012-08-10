@@ -25,7 +25,7 @@ public class EventList {
 		mList = new ArrayList<Event>();
 		EventDb db = new EventDb(ctx);
 		db.open();
-		Cursor c = db.queryEvents(null, null); // TODO null,"active"
+		Cursor c = db.queryEvents(null, EventDb.ACTIVE+"=1"); 
 		if (c.moveToFirst()) do {
 			mList.add(new Event(c));
 		} while (c.moveToNext());

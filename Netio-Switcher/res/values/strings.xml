@@ -22,7 +22,7 @@
 	<string name="event_name">Name</string>
 	<string name="event_aktiv">aktiv</string>
 	<string name="event_typ">Typ</string>
-	<string name="event_output">Schalterstellung\n(0=aus, 1=ein, i=Interrupt, u=unverändert)</string>
+	<string name="event_output">Schalterstellung, genau vier Zeichen\n(0=aus, 1=ein, i=Interrupt, u=unverändert)</string>
 	<string name="event_speichern">Speichern</string>
 	<string-array name="event_typenames">
 		<item>WLAN betreten</item> 

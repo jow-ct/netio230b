@@ -20,6 +20,8 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CheckedTextView;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleCursorAdapter.ViewBinder;
@@ -30,7 +32,7 @@ import de.jockels.netioswitch.CommService.LocalBinder;
 
 /**
  * 
- * TODO fillData beim Aufrufen von EventEdit, noch bevor der Dialog zurückkehrt?!
+ * TODO Validierung des OUT-Felds entweder direkt bei der Eingabe oder zumindest beim EventList
  * 
  * Stichworte für Artikel
  *  -	in Service gepackt, damit BroadcastReceiver direkt was damit machen können
@@ -171,20 +173,26 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	 * Eventliste zusammenbasteln
 	 */
 	private void fillData() {
+		if (DEBUG) Log.v(TAG, "fillData");
 		// Events starten
 		EventList.refresh(this);
 		
 		// Anzeige zusammenbasteln
         Cursor c = mDb.queryEvents(null, null);
         startManagingCursor(c);
-        String[] from = new String[] {EventDb.NAME};
-        int[] to = new int[] { R.id.text1 };
+        String[] from = new String[] {EventDb.NAME, EventDb.ACTIVE};
+        int[] to = new int[] { R.id.textName, R.id.textActive };
         SimpleCursorAdapter notes = new SimpleCursorAdapter(this, R.layout.event_line, c, from, to);
         notes.setViewBinder(new ViewBinder() {
 			public boolean setViewValue(View view, Cursor cursor, int columnIndex) {
-				String s = cursor.getString(columnIndex);
-				if (TextUtils.isEmpty(s)) s = "(kein Name)";
-				((TextView)view).setText(s);
+				if (columnIndex == cursor.getColumnIndex(EventDb.NAME)) {
+					String s = cursor.getString(columnIndex);
+					if (TextUtils.isEmpty(s)) s = "(kein Name)";
+					((TextView)view).setText(s);
+				} else if (columnIndex == cursor.getColumnIndex(EventDb.ACTIVE)) {
+					((TextView)view).setText(cursor.getInt(columnIndex)>0 ? "(aktiv)" : "(inaktiv)");
+				} else 
+					return false;
 				return true;
 			}
         });
@@ -252,6 +260,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 
 	@Override protected void onListItemClick(ListView l, View v, int position, long id) {
 		super.onListItemClick(l, v, position, id);
+		Log.v(TAG, "onListItemClick");
 		Intent i = new Intent(this, EventEdit.class);
 		i.putExtra(EventDb.ID, id);
 		startActivityForResult(i, ACTIVITY_EDIT);
