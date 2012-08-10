@@ -88,11 +88,12 @@ public class EventEdit extends Activity {
 						s.delete(i, i+1);
 					}
 				}
-				onChanged();
+				onChanged(); // Änderungen mitbekommen; alternativ von obigem Watcher erben
 			}
 			public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
 			public void onTextChanged(CharSequence s, int start, int before, int count) {
 				// TODO Abfrage beim Speichern
+				// TODO Fehler bei Android 2.2, da geht das Fensterchen abwechselnd an und aus
 				out1.setError( s.length()==4 ? null : "genau vier Zeichen, nur 0, 1, i, u erlaubt");
 			}
 		});
@@ -123,6 +124,8 @@ public class EventEdit extends Activity {
 			Bundle extras = getIntent().getExtras();
 			mRow = extras == null ? null : extras.getLong(EventDb.ID);
 		}
+		
+		// populateFields kommt dann in onResume, sonst wäre das doppelt
 	}
 
 	
@@ -134,6 +137,7 @@ public class EventEdit extends Activity {
 	
 	@Override public void onBackPressed() {
 		if (changed) {
+			// Änderungen nicht gespeichert
 			Log.v(TAG, "änderungen!!");
 			new AlertDialog.Builder(this)
 			.setTitle("Event-Daten geändert")
@@ -156,11 +160,13 @@ public class EventEdit extends Activity {
 					dialog.cancel();
 			}})
 			.show();
-		} else 
+		} else
+			// keine Änderungen
 			super.onBackPressed();
 	}
 
-
+	
+	// Namen der beiden Extra-Felder ändern
 	private void switchNames(int i) {
 		label1.setText(EventDb.NAMEN[i][0]);
 		label2.setText(EventDb.NAMEN[i][1]);
@@ -178,6 +184,8 @@ public class EventEdit extends Activity {
 		changed = false;
 	}
 
+	
+	// Felder aus Datenbank lesen
 	private void populateFields() {
 		if (DEBUG) Log.v(TAG, "populateFields");
 		if (mRow==null) {
@@ -200,6 +208,7 @@ public class EventEdit extends Activity {
 	}
 
 	
+	// Felder in Datenbank speichern
 	private void saveState() {
 		if (DEBUG) Log.v(TAG, "saveState; mRow:"+mRow);
 		ContentValues v = new ContentValues();
@@ -214,7 +223,7 @@ public class EventEdit extends Activity {
 		v.put(EventDb.OUTPUT, o1);
 		
 		if (mRow == null) {
-			// Speichern nur, wenn Name&Output eingegeben wurden
+			// Speichern nur, wenn Name eingegeben wurden
 			if (!TextUtils.isEmpty(n1)) {
 				long id = mDb.insertOrThrowEvent(v);
 				if (id > 0) mRow = id;
@@ -229,7 +238,7 @@ public class EventEdit extends Activity {
 	@Override
 	protected void onPause() {
 		super.onPause();
-		if (changed) saveState(); // ohne if (changed) entstehen sonst leere Einträge
+		if (changed) saveState(); // ohne if (changed) entstehen sonst leere Einträge TODO wirklich?
 	}
 
 
