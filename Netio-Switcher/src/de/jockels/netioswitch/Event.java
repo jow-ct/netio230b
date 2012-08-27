@@ -1,14 +1,31 @@
 package de.jockels.netioswitch;
 
+import android.content.ContentValues;
 import android.database.Cursor;
+import android.text.TextUtils;
 import android.util.Log;
 
 public class Event {
 	private final static String TAG = "Event";
-	private String name, ext1, ext2, out;
-	private boolean active;
-	private int type;
+	String name, ext1, ext2, out;
+	boolean active;
+	int type;
 	
+	
+	/**
+	 * ein leerer Event
+	 */
+	public Event() {
+		name = ext1 = ext2 = out = ""; // nicht null vereinfacht ein paar Tests
+		active = true;
+		type = 0;
+	}
+	
+	
+	/**
+	 * Event aus einem Cursor auslesen
+	 * @param c
+	 */
 	public Event(Cursor c) {
 		name = c.getString(c.getColumnIndex(EventDb.NAME));
 		active = c.getInt(c.getColumnIndex(EventDb.ACTIVE))>0;
@@ -16,7 +33,60 @@ public class Event {
 		ext1 = c.getString(c.getColumnIndex(EventDb.EXT1));
 		ext2 = c.getString(c.getColumnIndex(EventDb.EXT2));
 		out = c.getString(c.getColumnIndex(EventDb.OUTPUT));
+	}
+	
 
+	/**
+	 * Gegenstück zum Cursor-Constructor: Inhalt in einen ContentValues (für Datenbanken) packen
+	 * @return neu erzeugtes ContentValues
+	 */
+	ContentValues createContentValues() {
+		ContentValues v = new ContentValues();
+		v.put(EventDb.NAME, name);
+		v.put(EventDb.ACTIVE, active);
+		v.put(EventDb.TYPE, type);
+		v.put(EventDb.EXT1, ext1);
+		v.put(EventDb.EXT2, ext2);
+		v.put(EventDb.OUTPUT, out);
+		return v;
+	}
+
+
+	/**
+	 * Vergleich mit einem anderen Event; v.a. für Edit-Funktion wichtig
+	 * @param c
+	 * @return
+	 */
+	boolean equals(Event c) {
+		boolean equal = TextUtils.equals(name, c.name) && TextUtils.equals(ext1, c.ext1) && TextUtils.equals(ext2, c.ext2)
+				&& TextUtils.equals(out, c.out) && active==c.active && type == c.type;
+		return equal;
+	}
+	
+	
+	/**
+	 * Validierung
+	 */
+	public static boolean isNameValid(String name) {
+		return !TextUtils.isEmpty(name);
+	}
+	
+	public static boolean isOutValid(String out) {
+		if (out==null || out.length()!=4) return false;
+		for (int i=0; i<out.length(); i++) {
+			char c = out.charAt(i);
+			if (c!='1' && c!='0' && c!='i' && c!='u') return false;
+		}
+		return true;
+	}
+	
+	public boolean isOutValid() { return isOutValid(out); }
+	
+	
+	/**
+	 * Broadcast-Receiver oder ähnliches starten. Sollte dann mit stop() wieder angehalten werden.
+	 */
+	public void start() {
 		if (active) {
 			switch (type) {
 			case EventDb.TYP_WLAN_BETRETEN: case EventDb.TYP_WLAN_VERLASSEN:
@@ -31,6 +101,10 @@ public class Event {
 	// TODO BroadcastReceiver erzeugen
 	// TODO in onReceive muss der einen Service mit StartService lostreten
 
+	
+	/**
+	 * Broadcast-Receiver oder ähnliches wieder stoppen
+	 */
 	public void stop() {
 		// TODO
 	}
