@@ -28,9 +28,10 @@ public class EventDb {
 	public final static int TYP_WLAN_BETRETEN = 0;
 	public final static int TYP_WLAN_VERLASSEN = 1;
 	
+	public final static String UNUSED = "-";
 	public final static String[][] NAMEN = new String[][] {
-		{"WLAN-Name", "-"},			// WLAN betreten
-		{"Test1", "Test2"}				// WLAN verlassen
+		{"WLAN-Name", UNUSED},		// WLAN betreten
+		{"Test1", "Test2"}					// WLAN verlassen
 	};
 	
 	/** Internes */

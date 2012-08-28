@@ -80,7 +80,21 @@ public class Event {
 		return true;
 	}
 	
-	public boolean isOutValid() { return isOutValid(out); }
+	public static boolean isTypeValid(int type) {
+		return type < EventDb.NAMEN.length;
+	}
+	
+	public static boolean isExt1Valid(String ext1, int type) {
+		return isTypeValid(type) && ( !TextUtils.isEmpty(ext1) || EventDb.UNUSED.equals(EventDb.NAMEN[type][0]));
+	}
+	
+	public static boolean isExt2Valid(String ext2, int type) {
+		return isTypeValid(type) && ( !TextUtils.isEmpty(ext2) || EventDb.UNUSED.equals(EventDb.NAMEN[type][1]));
+	}
+	
+	public boolean isValid() {
+		return isNameValid(name) && isOutValid(out) && isTypeValid(type) && isExt1Valid(ext1, type) && isExt2Valid(ext2, type);
+	}
 	
 	
 	/**

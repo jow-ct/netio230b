@@ -23,7 +23,7 @@ import android.widget.TextView;
  * @author Jockel
  *
  */
-public class EventEdit extends Activity implements OnFocusChangeListener {
+public class EventEdit extends Activity {
 
 	private TextView label1, label2;
 	private EditText name1, ext1, ext2, out1;
@@ -59,8 +59,10 @@ public class EventEdit extends Activity implements OnFocusChangeListener {
 		save1 = (Button)findViewById(R.id.button1);
 		
 		// Validierungen
-		name1.setOnFocusChangeListener(this);
-		out1.setOnFocusChangeListener(this);
+		name1.setOnFocusChangeListener(new OnFocusChangeListener() {
+			public void onFocusChange(View v, boolean hasFocus) { testName1(); } });
+		out1.setOnFocusChangeListener(new OnFocusChangeListener() {
+			public void onFocusChange(View v, boolean hasFocus) { testOut1(); } });
 		name1.addTextChangedListener(new TextWatcher() {
 			public void afterTextChanged(Editable arg0) { testName1(); }
 			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
@@ -71,10 +73,23 @@ public class EventEdit extends Activity implements OnFocusChangeListener {
 			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
 			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
 		});
+		ext1.addTextChangedListener(new TextWatcher() {
+			public void afterTextChanged(Editable arg0) { testExt1(); }
+			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
+			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
+		});
+		ext2.addTextChangedListener(new TextWatcher() {
+			public void afterTextChanged(Editable arg0) { testExt2(); }
+			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
+			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
+		});
 		
 		// neuer Typ bewirkt, dass geänderte Namen angezeigt werden
 		typ1.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { switchNames(position); }
+			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { 
+				switchNames(position); 
+				testValid();
+			}
 			public void onNothingSelected(AdapterView<?> arg0) { }
 		});
 		
@@ -171,17 +186,33 @@ public class EventEdit extends Activity implements OnFocusChangeListener {
 	/**
 	 * Validierung
 	 */
-	public void onFocusChange(View v, boolean hasFocus) {
-		if (v==null || v==name1) testName1();
-		if (v==null || v==out1) testOut1();
-	}
-
 	private void testName1() {
 		if (!Event.isNameValid(name1.getText().toString())) name1.setError("darf nicht leer sein");
 	}
 	
 	private void testOut1() {
 		if (!Event.isOutValid(out1.getText().toString())) out1.setError("genau vier Zeichen, nur 0, 1, i, u erlaubt");
+	}
+	
+	private void testExt1() {
+		if (!Event.isExt1Valid(ext1.getText().toString(), typ1.getSelectedItemPosition()))
+			ext1.setError("darf nicht leer sein");
+		else
+			ext1.setError(null);
+	}
+	
+	private void testExt2() {
+		if (!Event.isExt2Valid(ext2.getText().toString(), typ1.getSelectedItemPosition()))
+			ext2.setError("darf nicht leer sein");
+		else
+			ext2.setError(null);
+	}
+	
+	private void testValid() {
+		testName1();
+		testOut1();
+		testExt1();
+		testExt2();
 	}
 	
 
@@ -198,7 +229,7 @@ public class EventEdit extends Activity implements OnFocusChangeListener {
 			mContent = new Event(event);
 		}
 		setEvent(mContent);
-		onFocusChange(null, true); // Validierung
+		testValid();
 	}
 
 	
@@ -206,7 +237,7 @@ public class EventEdit extends Activity implements OnFocusChangeListener {
 	private void saveState() {
 		Event current = getEvent();
 		if (mContent.equals(current)) return; // keine Änderung
-		if (!current.isOutValid()) current.active = false; // abschalten, wenn String falsch ist
+		if (!current.isValid()) current.active = false; // abschalten, wenn String falsch ist
 		ContentValues v = current.createContentValues();
 		
 		if (mRow == null) {
