@@ -266,6 +266,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 
 
 	@Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		Log.v(TAG, "onActivityResult "+resultCode);
 		super.onActivityResult(requestCode, resultCode, data);
 		fillData();
 	}

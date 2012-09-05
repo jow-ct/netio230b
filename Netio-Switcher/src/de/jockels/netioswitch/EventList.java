@@ -6,7 +6,6 @@ import android.content.Context;
 import android.database.Cursor;
 import android.util.Log;
 
-
 public class EventList {
 	private static final String TAG = "EventList";
 	private static ArrayList<Event> mList = null;
@@ -27,11 +26,31 @@ public class EventList {
 		db.open();
 		Cursor c = db.queryEvents(null, EventDb.ACTIVE+"=1"); 
 		if (c.moveToFirst()) do {
-			mList.add(new Event(c));
+			mList.add( Event.eventHelper.createFromCursor(c) );
 		} while (c.moveToNext());
 		Log.v(TAG, mList.size()+" Events erzeugt");
 		c.close();
 		db.close();
+		
+		int s = 0;
+		for (Event e : mList) {
+			if (e.isValid()) {
+				e.start();
+				s++;
+			} else {
+				e.i[Event.ACTIVE] = 0;
+				// TODO update
+			}
+		}
+		Log.i(TAG, s+" Events gestartet.");
 	}
 	
+	
+	public static void startEvent(int id) {
+	}
+	
+	
+	public static void stopEvent(int id) {
+		
+	}
 }

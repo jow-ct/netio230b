@@ -1,113 +1,103 @@
 package de.jockels.netioswitch;
 
-import android.content.ContentValues;
-import android.database.Cursor;
+import android.os.Handler;
 import android.text.TextUtils;
 import android.util.Log;
+import de.jockels.forms.Content;
+import de.jockels.forms.ContentHelper;
 
-public class Event {
+public class Event extends Content {
 	private final static String TAG = "Event";
-	String name, ext1, ext2, out;
-	boolean active;
-	int type;
 	
+	public static final int NAME = 0;
+	public static final int EXT1 = 1;
+	public static final int EXT2 = 2;
+	public static final int OUT = 3;
+	public static final int ACTIVE = 4;
+	public static final int TYPE = 5;
+	public static final int _SUM = 6;
+	
+	public static ContentHelper<Event> eventHelper = new ContentHelper<Event>(_SUM, Event.class)
+		.addString(EventDb.NAME)
+		.addString(EventDb.EXT1)
+		.addString(EventDb.EXT2)
+		.addString(EventDb.OUTPUT)
+		.addBoolean(EventDb.ACTIVE)
+		.addInt(EventDb.TYPE);
+
+	private Handler aHandler = null;
+	private Runnable aRunnable = null;
 	
 	/**
 	 * ein leerer Event
 	 */
 	public Event() {
-		name = ext1 = ext2 = out = ""; // nicht null vereinfacht ein paar Tests
-		active = true;
-		type = 0;
-	}
-	
-	
-	/**
-	 * Event aus einem Cursor auslesen
-	 * @param c
-	 */
-	public Event(Cursor c) {
-		name = c.getString(c.getColumnIndex(EventDb.NAME));
-		active = c.getInt(c.getColumnIndex(EventDb.ACTIVE))>0;
-		type = c.getInt(c.getColumnIndex(EventDb.TYPE));
-		ext1 = c.getString(c.getColumnIndex(EventDb.EXT1));
-		ext2 = c.getString(c.getColumnIndex(EventDb.EXT2));
-		out = c.getString(c.getColumnIndex(EventDb.OUTPUT));
-	}
-	
-
-	/**
-	 * Gegenstück zum Cursor-Constructor: Inhalt in einen ContentValues (für Datenbanken) packen
-	 * @return neu erzeugtes ContentValues
-	 */
-	ContentValues createContentValues() {
-		ContentValues v = new ContentValues();
-		v.put(EventDb.NAME, name);
-		v.put(EventDb.ACTIVE, active);
-		v.put(EventDb.TYPE, type);
-		v.put(EventDb.EXT1, ext1);
-		v.put(EventDb.EXT2, ext2);
-		v.put(EventDb.OUTPUT, out);
-		return v;
-	}
-
-
-	/**
-	 * Vergleich mit einem anderen Event; v.a. für Edit-Funktion wichtig
-	 * @param c
-	 * @return
-	 */
-	boolean equals(Event c) {
-		boolean equal = TextUtils.equals(name, c.name) && TextUtils.equals(ext1, c.ext1) && TextUtils.equals(ext2, c.ext2)
-				&& TextUtils.equals(out, c.out) && active==c.active && type == c.type;
-		return equal;
+		super(_SUM);
+		s[NAME] = s[EXT1] = s[EXT2] = s[OUT] = "";
 	}
 	
 	
 	/**
 	 * Validierung
 	 */
-	public static boolean isNameValid(String name) {
-		return !TextUtils.isEmpty(name);
-	}
-	
-	public static boolean isOutValid(String out) {
-		if (out==null || out.length()!=4) return false;
-		for (int i=0; i<out.length(); i++) {
-			char c = out.charAt(i);
-			if (c!='1' && c!='0' && c!='i' && c!='u') return false;
+	@Override
+	public boolean isValid(int id) {
+		switch (id) {
+		
+		// Name ist gültig, wenn er nicht leer ist
+		case NAME: return !TextUtils.isEmpty(s[NAME]);
+		
+		// Output ist gültig, wenn er 4 Zeichen lang ist und nur 1, 0, i, u
+		case OUT:
+			String o = s[OUT];
+			if (TextUtils.isEmpty(o) || o.length() != 4) return false;
+			for (int i=0; i<o.length(); i++) {
+				char c = o.charAt(i);
+				if (c!='1' && c!='0' && c!='i' && c!='u') return false;
+			}
+			return true;
+			
+		// Type ist gültig, wenn im vorgegebenen Rahmen
+		case TYPE: return i[TYPE] < EventDb.NAMEN.length;
+		
+		// EXT1 ist gültig, wenn nicht leer oder wenn leer erlaubt
+		case EXT1:
+			return isValid(TYPE) && ( !TextUtils.isEmpty(s[EXT1]) || EventDb.UNUSED.equals(EventDb.NAMEN[i[TYPE]][0]));
+			
+		// EXT2 ist gültig, wenn nicht leer oder wenn leer erlaubt
+		case EXT2:
+			return isValid(TYPE) && ( !TextUtils.isEmpty(s[EXT2]) || EventDb.UNUSED.equals(EventDb.NAMEN[i[TYPE]][1]));
+		
+		default: return true;
 		}
-		return true;
 	}
-	
-	public static boolean isTypeValid(int type) {
-		return type < EventDb.NAMEN.length;
-	}
-	
-	public static boolean isExt1Valid(String ext1, int type) {
-		return isTypeValid(type) && ( !TextUtils.isEmpty(ext1) || EventDb.UNUSED.equals(EventDb.NAMEN[type][0]));
-	}
-	
-	public static boolean isExt2Valid(String ext2, int type) {
-		return isTypeValid(type) && ( !TextUtils.isEmpty(ext2) || EventDb.UNUSED.equals(EventDb.NAMEN[type][1]));
-	}
-	
-	public boolean isValid() {
-		return isNameValid(name) && isOutValid(out) && isTypeValid(type) && isExt1Valid(ext1, type) && isExt2Valid(ext2, type);
-	}
-	
+
 	
 	/**
 	 * Broadcast-Receiver oder ähnliches starten. Sollte dann mit stop() wieder angehalten werden.
 	 */
 	public void start() {
-		if (active) {
-			switch (type) {
-			case EventDb.TYP_WLAN_BETRETEN: case EventDb.TYP_WLAN_VERLASSEN:
+		Log.v(TAG, "Start Event "+s[NAME]);
+		if (i[ACTIVE]>0) {
+			switch (i[TYPE]) {
+			
+			case EventDb.TYP_WLAN_BETRETEN: 
+			case EventDb.TYP_WLAN_VERLASSEN:
 				// TODO
 				break;
+				
+			case EventDb.TYP_5S:
+				aHandler = new Handler();
+				aRunnable = new Runnable() {
+					public void run() {
+						Log.v(TAG, "ticktack");
+						if (aHandler!=null) aHandler.postDelayed(aRunnable, 10000);
+					}
+				};
+				aHandler.postDelayed(aRunnable, 10000);
+				break;
 			default:
-				Log.v(TAG, "Eventtyp nicht implementiert: "+type);
+				Log.v(TAG, "Eventtyp nicht implementiert: "+i[TYPE]);
 			}
 		}
 	}

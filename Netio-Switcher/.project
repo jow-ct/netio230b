@@ -3,6 +3,7 @@
 	<name>Netio-Switcher</name>
 	<comment></comment>
 	<projects>
+		<project>jockelLib</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>

@@ -27,5 +27,6 @@
 	<string-array name="event_typenames">
 		<item>WLAN betreten</item> 
 		<item>WLAN verlassen</item>
+		<item>alle 5 Sekunden</item>
 	</string-array>
 </resources>

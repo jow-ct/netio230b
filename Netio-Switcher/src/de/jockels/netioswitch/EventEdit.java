@@ -6,18 +6,19 @@ import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
-import android.view.View.OnFocusChangeListener;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
+import de.jockels.forms.DialogHelper;
 
 /**
  * @author Jockel
@@ -34,6 +35,8 @@ public class EventEdit extends Activity {
 	private Long mRow;
 	private EventDb mDb; 
 	private Event mContent;
+	private DialogHelper<Event> mHelper;
+	private boolean mCanceled = false;
 	
 	private static final String TAG = "EventEdit";
 	private static final boolean DEBUG = true;
@@ -42,6 +45,7 @@ public class EventEdit extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		Log.v(TAG, "onCreate");
 		
 		mDb = new EventDb(this);
 		mDb.open();
@@ -58,37 +62,19 @@ public class EventEdit extends Activity {
 		out1 = (EditText)findViewById(R.id.editText4);
 		save1 = (Button)findViewById(R.id.button1);
 		
-		// Validierungen
-		name1.setOnFocusChangeListener(new OnFocusChangeListener() {
-			public void onFocusChange(View v, boolean hasFocus) { testName1(); } });
-		out1.setOnFocusChangeListener(new OnFocusChangeListener() {
-			public void onFocusChange(View v, boolean hasFocus) { testOut1(); } });
-		name1.addTextChangedListener(new TextWatcher() {
-			public void afterTextChanged(Editable arg0) { testName1(); }
-			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-		});
-		out1.addTextChangedListener(new TextWatcher() {
-			public void afterTextChanged(Editable arg0) { testOut1(); }
-			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-		});
-		ext1.addTextChangedListener(new TextWatcher() {
-			public void afterTextChanged(Editable arg0) { testExt1(); }
-			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-		});
-		ext2.addTextChangedListener(new TextWatcher() {
-			public void afterTextChanged(Editable arg0) { testExt2(); }
-			public void beforeTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-			public void onTextChanged(CharSequence arg0, int arg1, int arg2, int arg3) { }
-		});
+		// DialogHelper
+		mHelper = new DialogHelper<Event>(this, Event.eventHelper, Event.class)
+				.addDescription(Event.NAME, name1, "darf nicht leer sein")
+				.addDescription(Event.EXT1, ext1, "darf nicht leer sein")
+				.addDescription(Event.EXT2, ext2, "darf nicht leer sein")
+				.addDescription(Event.OUT, out1, "genau vier Zeichen, nur 1, 0, i, u")
+				.addDescription(Event.ACTIVE, active1)
+				.addDescription(Event.TYPE, typ1);
 		
 		// neuer Typ bewirkt, dass geänderte Namen angezeigt werden
 		typ1.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
 			public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { 
 				switchNames(position); 
-				testValid();
 			}
 			public void onNothingSelected(AdapterView<?> arg0) { }
 		});
@@ -96,8 +82,14 @@ public class EventEdit extends Activity {
 		// Klick auf Save bewirkt, dass der Dialog beendet wird
 		save1.setOnClickListener(new View.OnClickListener() {
 			public void onClick(View v) {
-				setResult(RESULT_OK);
-				finish();
+				setResultCode(RESULT_OK);
+			}
+		});
+		
+		// Gültigkeit überprüfen
+		active1.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+			public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+				if (isChecked && mHelper.getErrorLogging()) testActive();
 			}
 		});
 		
@@ -110,6 +102,7 @@ public class EventEdit extends Activity {
 		}
 		
 		// populateFields kommt dann in onResume, sonst wäre das doppelt
+		Log.v(TAG, "onCreate end");
 	}
 
 	
@@ -118,9 +111,16 @@ public class EventEdit extends Activity {
 		super.onDestroy();
 	}
 
+
+	public void setResultCode(int aResultCode) {
+		mCanceled = aResultCode==RESULT_CANCELED;
+		setResult(aResultCode);
+		finish();
+	}
+	
 	
 	@Override public void onBackPressed() {
-		if (mContent.equals(getEvent())) {
+		if (mCanceled || mHelper.isEqual(mContent)) {
 			// keine Änderungen
 			super.onBackPressed();
 		} else {
@@ -132,15 +132,12 @@ public class EventEdit extends Activity {
 			.setPositiveButton("Verwerfen", new DialogInterface.OnClickListener() {
 				public void onClick(DialogInterface dialog, int which) {
 					dialog.cancel();
-					setResult(RESULT_CANCELED);
-					setEvent(mContent); // Felder von gespeichertem Event laden
-					EventEdit.this.onBackPressed();
+					setResultCode(RESULT_CANCELED);
 				}})
 			.setNegativeButton("Speichern", new DialogInterface.OnClickListener() {
 				public void onClick(DialogInterface dialog, int which) {
 					dialog.cancel();
-					setResult(RESULT_OK);
-					EventEdit.this.finish();
+					setResultCode(RESULT_OK);
 			}})
 			.setNeutralButton("Abbrechen", new DialogInterface.OnClickListener() {
 				public void onClick(DialogInterface dialog, int which) {
@@ -155,69 +152,15 @@ public class EventEdit extends Activity {
 	private void switchNames(int i) {
 		label1.setText(EventDb.NAMEN[i][0]);
 		label2.setText(EventDb.NAMEN[i][1]);
-	}
-
-	
-	/**
-	 * zwischen Feldern und Event schaufeln
-	 */
-	private Event getEvent() {
-		Event e = new Event();
-		e.name = name1.getText().toString();
-		e.active = active1.isChecked();
-		e.type = typ1.getSelectedItemPosition();
-		e.ext1 = ext1.getText().toString();
-		e.ext2 = ext2.getText().toString();
-		e.out = out1.getText().toString();
-		return e;
-	}
-
-	private void setEvent(Event e) {
-		name1.setText(e.name);
-		active1.setChecked(e.active);
-		typ1.setSelection(e.type);
-		ext1.setText(e.ext1);
-		ext2.setText(e.ext2);
-		out1.setText(e.out);
-		switchNames(e.type);
-	}
-	
-	
-	/**
-	 * Validierung
-	 */
-	private void testName1() {
-		if (!Event.isNameValid(name1.getText().toString())) name1.setError("darf nicht leer sein");
-	}
-	
-	private void testOut1() {
-		if (!Event.isOutValid(out1.getText().toString())) out1.setError("genau vier Zeichen, nur 0, 1, i, u erlaubt");
-	}
-	
-	private void testExt1() {
-		if (!Event.isExt1Valid(ext1.getText().toString(), typ1.getSelectedItemPosition()))
-			ext1.setError("darf nicht leer sein");
-		else
-			ext1.setError(null);
-	}
-	
-	private void testExt2() {
-		if (!Event.isExt2Valid(ext2.getText().toString(), typ1.getSelectedItemPosition()))
-			ext2.setError("darf nicht leer sein");
-		else
-			ext2.setError(null);
-	}
-	
-	private void testValid() {
-		testName1();
-		testOut1();
-		testExt1();
-		testExt2();
+		mHelper.readFromView(Event.TYPE);
+		mHelper.setErrorMessage(Event.EXT1);
+		mHelper.setErrorMessage(Event.EXT2);
 	}
 	
 
 	// Felder aus Datenbank lesen
 	private void populateFields() {
+		Log.v(TAG, "populateFields");
 		if (mRow==null) {
 			setTitle("neuen Event anlegen");
 			mContent = new Event();
@@ -225,20 +168,21 @@ public class EventEdit extends Activity {
 			setTitle("Event bearbeiten");
 			Cursor event = mDb.queryEvents(null, EventDb.ID+"="+mRow);
 			event.moveToFirst();
-			startManagingCursor(event);
-			mContent = new Event(event);
+//			startManagingCursor(event);
+			mContent = Event.eventHelper.createFromCursor(event);
+			event.close();
 		}
-		setEvent(mContent);
-		testValid();
+		mHelper.writeToView(mContent);
+		mHelper.setErrorMessages();
+		Log.v(TAG, "populateFields end");
 	}
 
 	
 	// Felder in Datenbank speichern
 	private void saveState() {
-		Event current = getEvent();
-		if (mContent.equals(current)) return; // keine Änderung
-		if (!current.isValid()) current.active = false; // abschalten, wenn String falsch ist
-		ContentValues v = current.createContentValues();
+		if (mCanceled || mHelper.isEqual(mContent)) return; // keine Änderung
+		testActive();
+		ContentValues v = mHelper.writeToContentValues();
 		
 		if (mRow == null) {
 			long id = mDb.insertOrThrowEvent(v);
@@ -246,9 +190,19 @@ public class EventEdit extends Activity {
 		} else {
 			mDb.updateEvents(v, EventDb.ID+"="+mRow);
 		}
-		mContent = current;
+		mContent = mHelper.current;
 	}
 
+	
+	public void testActive() {
+		if (!mHelper.isValid()) {
+			active1.setChecked(false);
+			mHelper.current.i[Event.ACTIVE] = 0;
+			Toast.makeText(getApplicationContext(), 
+					"Event kann nicht aktiviert werden,  da nicht alle Felder korrekt ausgefüllt sind.", 
+					Toast.LENGTH_SHORT).show();
+		}
+	}
 	
 	@Override
 	protected void onPause() {
@@ -261,6 +215,7 @@ public class EventEdit extends Activity {
 	protected void onResume() {
 		super.onResume();
 		populateFields();
+		mHelper.setErrorLogging(true);
 	}
 
 	
