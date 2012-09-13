@@ -3,7 +3,7 @@
     <item 
     	android:id="@+id/itemEventNew" 
     	android:title="@string/menu_eventNew" 
-    	android:icon="@drawable/ic_menu_compose"
+    	android:icon="@drawable/ic_menu_add"
     />
     <item 
     	android:id="@+id/itemConfig" 
@@ -19,6 +19,16 @@
     	android:id="@+id/itemStop" 
     	android:title="@string/menu_stop" 
     	android:icon="@drawable/ic_menu_close_clear_cancel"
+    />
+    <item 
+    	android:id="@+id/itemStartEvents" 
+    	android:title="@string/menu_startEvents" 
+    	android:icon="@drawable/ic_media_play"
+    />
+        <item 
+    	android:id="@+id/itemStopEvents" 
+    	android:title="@string/menu_stopEvents" 
+    	android:icon="@drawable/ic_media_pause"
     />
     
 </menu>

@@ -13,29 +13,29 @@ public class EventList {
 	/**
 	 * von außen: EventList erzeugen/refreshen
 	 */
-	public final static void refresh(Context ctx) {
+	public final static int refreshEvents(EventDb db, Connection p) {
 		// alte Liste löschen
-		if (mList!=null) {
-			for (Event i : mList) {i.stop();}
-			mList = null;
-		}
+		if (mList!=null) stopEvents();
 		
 		// neue einlesen
 		mList = new ArrayList<Event>();
-		EventDb db = new EventDb(ctx);
-		db.open();
 		Cursor c = db.queryEvents(null, EventDb.ACTIVE+"=1"); 
 		if (c.moveToFirst()) do {
-			mList.add( Event.eventHelper.createFromCursor(c) );
+			Event e = Event.eventHelper.createFromCursor(c);
+			e.setParameter(p);
+			mList.add( e );
 		} while (c.moveToNext());
 		Log.v(TAG, mList.size()+" Events erzeugt");
 		c.close();
-		db.close();
-		
+		return mList.size();
+	}
+
+
+	public final static int startEvents(Context ctx) {
 		int s = 0;
 		for (Event e : mList) {
 			if (e.isValid()) {
-				e.start();
+				e.start(ctx);
 				s++;
 			} else {
 				e.i[Event.ACTIVE] = 0;
@@ -43,14 +43,18 @@ public class EventList {
 			}
 		}
 		Log.i(TAG, s+" Events gestartet.");
+		return s;
 	}
 	
 	
-	public static void startEvent(int id) {
+	public final static int stopEvents() {
+		int s=0;
+		for (Event e : mList) 
+			if (e.isRunning()) {
+				e.stop();
+				s++;
+			}
+		return s;
 	}
 	
-	
-	public static void stopEvent(int id) {
-		
-	}
 }

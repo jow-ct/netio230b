@@ -27,13 +27,13 @@ public class EventDb {
 	/** Typen */
 	public final static int TYP_WLAN_BETRETEN = 0;
 	public final static int TYP_WLAN_VERLASSEN = 1;
-	public final static int TYP_5S = 2;
+	public final static int TYP_SECONDS = 2;
 	
 	public final static String UNUSED = "-";
 	public final static String[][] NAMEN = new String[][] {
 		{"WLAN-Name", UNUSED},		// WLAN betreten
 		{"Test1", "Test2"},					// WLAN verlassen
-		{UNUSED, UNUSED}					// alle 5 Sekunden
+		{"Sekunden", UNUSED}					// alle 5 Sekunden
 	};
 	
 	/** Internes */

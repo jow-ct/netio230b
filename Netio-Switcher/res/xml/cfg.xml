@@ -7,6 +7,11 @@
     	android:summary="@string/cfg_autoconnect_long" 
     	android:key="autoconnect" />
     <EditTextPreference 
+    	android:summary="@string/cfg_reload_long" 
+    	android:title="@string/cfg_reload_short" 
+    	android:inputType="number"
+    	android:key="reload" />
+    <EditTextPreference 
     	android:summary="@string/cfg_ip_long" 
     	android:title="@string/cfg_ip_short" 
     	android:key="ip" />

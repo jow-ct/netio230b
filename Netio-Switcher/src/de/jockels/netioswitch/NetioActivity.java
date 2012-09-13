@@ -8,12 +8,14 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -24,25 +26,31 @@ import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleCursorAdapter.ViewBinder;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.ToggleButton;
-import de.jockels.netioswitch.CommService.CommunicatorListener;
-import de.jockels.netioswitch.CommService.LocalBinder;
+import de.jockels.lib.StringTools;
+import de.jockels.netioswitch.CommService.CommBinder;
+import de.jockels.netioswitch.Connection.Listener;
 
 /**
  * 
- * TODO Validierung des OUT-Felds entweder direkt bei der Eingabe oder zumindest beim EventList
+ * TODO Visualisierung des Reloaders z.B. mit Icon am Rand
  * 
  * Stichworte für Artikel
  *  -	in Service gepackt, damit BroadcastReceiver direkt was damit machen können
  *  -	auf den Befehl zum Lesen eines einzelnen Status verzichtet, aber doSwitch kennt beide Varianten
  *  -	das "Asynchrone" steckt im Service. Die Komponenten, die das auswerten, müssen nur ein Listener
  *  	implementieren
+ *  
+ *  Ideen für Intents:
+ *  http://developer.android.com/reference/android/content/Intent.html
+ *  (ab Summary)
  */
 
 public class NetioActivity extends ListActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
 	private final static String TAG = "NetioActivity";
 	private final static boolean DEBUG = true;
-	private CommService mComm;
+	private CommBinder mComm;
 	private boolean mBound = false;
 	private SharedPreferences mCfg;
 	private boolean mReconnectNeeded = false;
@@ -51,6 +59,8 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	private TextView id, error;
 	private ToggleButton[] b = new ToggleButton[4];
 	private Button[] a = new Button[2];
+
+	private Reloader mReloader;
 	
 	public static final int ACTIVITY_CREATE = 0;
 	public static final int ACTIVITY_EDIT = 1;
@@ -58,19 +68,24 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		Log.v(TAG, "onCreate");
 		
 		// Event-Liste erzeugen und anpassen
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
 		
+		// Konfigurationsdatei öffnen
+		mCfg = PreferenceManager.getDefaultSharedPreferences(this);
+		mCfg.registerOnSharedPreferenceChangeListener(this);
+		Log.v(TAG, "onCreate: connection-size: "+ConnectionList.getSize());
+		ConnectionList.addConnection(new Connection(mCfg));
+		Log.v(TAG, "onCreate: connection-size: "+ConnectionList.getSize());
+		
 		// Event-Datenbank öffnen
 		mDb = new EventDb(this);
 		mDb.open();
 		fillData();
-		
-		// Konfigurationsdatei öffnen
-		mCfg = PreferenceManager.getDefaultSharedPreferences(this);
-		mCfg.registerOnSharedPreferenceChangeListener(this);
+		startEvents();
 		
 		// Zeiger auf Steuerelement basteln und Knöppe auf inaktiv schalten 
 		id = (TextView)findViewById(R.id.textView0);
@@ -86,7 +101,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		for (Button i : a) i.setOnClickListener(ocl);
 
 		// Verbindung herstellen, falls gewünscht, bzw. Parameter abfragen
-		if (mCfg.getString("ip", "").equals("")) {
+		if (TextUtils.isEmpty(mCfg.getString("ip", ""))) {
 			startActivity(new Intent(this, Einstellungen.class));
 		} else {
 			mReconnectNeeded = true;
@@ -96,6 +111,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	
 	@Override protected void onStart() {
 		super.onStart();
+		Log.v(TAG, "onStart");
 		if (mReconnectNeeded) {
 			if (mCfg.getBoolean("autoconnect", false)) 
 				startComm();
@@ -107,7 +123,9 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		}
 	}
 
+	
 	@Override protected void onDestroy() {
+		Log.v(TAG, "onDestroy");
 		stopComm();
 		mDb.close();
 		super.onDestroy();
@@ -119,21 +137,27 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	 */
 	private ServiceConnection mConnection = new ServiceConnection() {
 		public void onServiceConnected(ComponentName name, IBinder service) {
-			LocalBinder binder = (LocalBinder) service;
-			mComm = binder.getService();
+			mComm = (CommBinder) service;
 			mBound = true;
 			if (DEBUG) Log.v(TAG, "onServiceConnected");
 			
 			// jetzt Verbindung herstellen
-			String ip = mCfg.getString("ip", "");
-			setDisable("verbinde mit "+ip+" ...");
-			mComm.setParameter(new CommService.Parameter(
-					ip, 
-					mCfg.getString("kshell", ""), 
-					mCfg.getString("username", ""), 
-					mCfg.getString("password", ""),
-					mCfg.getString("timeout", "")
-			)).setListener(new CommListener()).start();
+			setDisable("verbinde mit "+mCfg.getString("ip", "")+" ...");
+			mComm.setConnectionIndex(0); // TODO bei mehreren Steckdosen anders
+			ConnectionList.getConnection(0).setListener(new CommListener());
+			mComm.start();
+			
+			// Reloader
+			int reload = StringTools.tryParseInt(mCfg.getString("reload", ""));
+			if (reload>0) {
+				mReloader = new Reloader(reload);
+				mReloader.start();
+				Toast toast = Toast.makeText(NetioActivity.this, 
+						"Reload alle "+reload+" s gestartet", Toast.LENGTH_LONG);
+				toast.setGravity(Gravity.CENTER, 0, 0);
+				toast.show();
+			} else
+				mReloader = null;
 		}
 
 		public void onServiceDisconnected(ComponentName name) {
@@ -153,6 +177,22 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	}
 	
 	
+	private void startEvents() {
+		int c = EventList.refreshEvents(mDb, new Connection(mCfg));
+		int s = EventList.startEvents(this);
+		Toast.makeText(this, c+" Events geladen, davon "+s+" gestartet", Toast.LENGTH_SHORT).show();
+		// TODO ChoiceFormat
+	}
+	
+	
+	private void stopEvents() {
+		int s = EventList.stopEvents();
+		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
+		// TODO ChoiceFormat
+		// http://docs.oracle.com/javase/tutorial/i18n/format/choiceFormat.html
+	}
+	
+	
 	/**
 	 * Kommunikation stoppen
 	 */
@@ -161,19 +201,58 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		if (mBound) {
 			unbindService(mConnection);
 			setDisable("Verbindung getrennt");
-			mComm.clearListener();
+			ConnectionList.getConnection(0).clearListener();
+			if (mReloader!=null) {
+				mReloader.stop();
+				mReloader = null;
+			}
 		}
 		mBound = false;
 	}
 
 	
 	/**
+	 * Klasse zum regelmäßigen Abfragen einer Steckdose
+	 *
+	 */
+	private class Reloader implements Runnable{
+		int mReload;
+		Handler mHandler;
+		Reloader(int r) {
+			super();
+			if (r<5) r = 5;
+			mReload = r*1000;
+			mHandler = new Handler();
+		}
+		
+		public void start() {
+			Log.v(TAG, (mReload/1000)+"s reload started");
+			mHandler.postDelayed(this, mReload);
+		}
+		
+		public void stop() {
+			Log.v(TAG, "reload stopped");
+			mReload = 0;
+			mHandler.removeCallbacks(this);
+		}
+		
+		public void run() {
+			Log.v(TAG, "ticktack");
+			for (ToggleButton i : b) {
+				i.setEnabled(false);
+				i.setChecked(false);
+			}
+			mComm.doStatus();
+			if (mReload>0) mHandler.postDelayed(this, mReload);
+		}
+	}
+	
+	
+	/**
 	 * Eventliste zusammenbasteln
 	 */
 	private void fillData() {
 		if (DEBUG) Log.v(TAG, "fillData");
-		// Events starten
-		EventList.refresh(this);
 		
 		// Anzeige zusammenbasteln
         Cursor c = mDb.queryEvents(null, null);
@@ -238,6 +317,12 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		case R.id.itemEventNew:
 			startActivityForResult(new Intent(this, EventEdit.class), ACTIVITY_CREATE);
 			return true;
+		case R.id.itemStartEvents:
+			startEvents();
+			return true;
+		case R.id.itemStopEvents:
+			stopEvents();
+			return true;
 		default:        
 			return super.onOptionsItemSelected(item);    
 		}
@@ -250,6 +335,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 			AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
 			mDb.deleteEvent(info.id);
 			fillData();
+			startEvents();
 			return true;
 		}
 		return super.onContextItemSelected(item);
@@ -259,6 +345,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	@Override protected void onListItemClick(ListView l, View v, int position, long id) {
 		super.onListItemClick(l, v, position, id);
 		Log.v(TAG, "onListItemClick");
+		stopEvents();
 		Intent i = new Intent(this, EventEdit.class);
 		i.putExtra(EventDb.ID, id);
 		startActivityForResult(i, ACTIVITY_EDIT);
@@ -269,6 +356,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		Log.v(TAG, "onActivityResult "+resultCode);
 		super.onActivityResult(requestCode, resultCode, data);
 		fillData();
+		startEvents();
 	}
 
 
@@ -301,7 +389,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	/**
 	 * Callback der Steckdose
 	 */
-	private class CommListener implements CommunicatorListener{
+	private class CommListener implements Listener{
 		
 		public void onError(String err) {
 			// nicht weiter definierte Fehlermeldung, i.Allg. = Verbindung kaputt
@@ -312,7 +400,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		}
 
 		public void onCommand(String command, String result) {
-			Log.v(TAG, "onCommand '"+command+"': "+result);
+			if (DEBUG) Log.v(TAG, "onCommand '"+command+"': "+result);
 			if (CommService.cAlias.equals(command)) {
 				// Initialisierung erfolgreich, also Namen anzeigen und Knöppe aktivieren
 				String ip = mCfg.getString("ip", "");

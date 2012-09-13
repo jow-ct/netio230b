@@ -7,7 +7,11 @@
     <string name="menu_stop">Trennen</string>
     <string name="menu_eventNew">Event anlegen</string>
     <string name="menu_eventDel">Event löschen</string>
+    <string name="menu_startEvents">Events starten</string>
+    <string name="menu_stopEvents">Events anhalten</string>
     <string name="cfg_steckdose">Zugriff auf Steckdose</string>
+    <string name="cfg_reload_short">automatischer Reload</string>
+    <string name="cfg_reload_long">Zeitspanne in Sekunden, nach der die Schalterstellung automatisch ausgelesen wird (Minimum 5; 0=kein automatischer Reload)</string>
     <string name="cfg_ip_short">Internet-Adresse</string>
     <string name="cfg_ip_long">Entweder lokale IP wie 192.168.1.60 oder von außen erreichbare
     	URL beispielsweise über dyndns.org.</string>
@@ -27,6 +31,6 @@
 	<string-array name="event_typenames">
 		<item>WLAN betreten</item> 
 		<item>WLAN verlassen</item>
-		<item>alle 5 Sekunden</item>
+		<item>Zeitspanne (s)</item>
 	</string-array>
 </resources>

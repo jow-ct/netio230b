@@ -7,14 +7,15 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-import android.app.Service;
+import android.app.IntentService;
 import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
-import android.text.TextUtils;
+import android.util.Log;
+import de.jockels.netioswitch.Connection.Listener;
 
-public class CommService extends Service {
+public class CommService extends IntentService {
 	@SuppressWarnings("unused")
 	private final static String TAG = "CommService";
 
@@ -25,106 +26,101 @@ public class CommService extends Service {
 	public final static String cStatus = "status";
 	public final static String cSet = "set";
 	public final static String cError = "error";
-
 	
-	/*
-	 * Callback
+	public final static String ACTION_SET = cSet;
+	public final static String EXTRA_OUT = EventDb.OUTPUT;
+	public final static String EXTRA_CONNECTION = "connection";
+
+
+	/**
+	 * Binder-Krams
+	 * 
+	 * Die von außen erreichbaren Funktionen sind nicht einfach das Interface des Service,
+	 * sondern pro Binder wird ein Set von Steckdosen-Parametern und einem Listener
+	 * abgespeichert
 	 */
-	public interface CommunicatorListener {
-		public abstract void onError(String error); // voriges Kommando oder Connect nicht ausgeführt
-		public abstract void onCommand(String command, String result); // Kommando richtig ausgeführt
+	public class CommBinder extends Binder {
+		private int mConnection;
+		public void setConnectionIndex(int i) { mConnection = i; }
+		
+		public CommBinder start() { 
+			CommService.this.start(mConnection); 
+			return this;
+		}
+		
+		public void doSwitch(int b, boolean state) {
+			CommService.this.doSwitch(mConnection, b, state); 
+		}
+
+		public void doSwitch(String command) { 
+			CommService.this.doSwitch(mConnection, command); 
+		}
+
+		public void doStatus() { 
+			CommService.this.doStatus(mConnection);
+		}
+	}
+	
+	
+	@Override public IBinder onBind(Intent intent) { 
+		Log.v(TAG, "onBind");
+		return new CommBinder();
 	}
 
 	
-	/*
-	 * Über diese Parameter wird eine Steckdose angesprochen
-	 * - bei mir: 192.168.1.60 oder jockulator.dyndns.org
-	 * - Name/PW default: admin/admin
-	 * - Port default: 1234
-	 * - Timeout: 1s im LAN, 5-10s per UMTS
-	 */
-	public static class Parameter {
-		private String ip, username, password;
-		private int port, timeout;
-		public Parameter(String aIp, String aPort, String aUsername, String aPassword, String aTimeout) {
-			ip = aIp;
-			try {
-				port = Integer.parseInt(aPort);
-			} catch (NumberFormatException e) {
-				port = 0;
-			}
-			username = aUsername;
-			password = aPassword;
-			try {
-				timeout = Integer.parseInt(aTimeout);
-			} catch (NumberFormatException e) {
-				timeout = 0;
-			}
+	public CommService() { 
+		super("CommService"); 
+	}
+	
+	
+	@Override
+	protected void onHandleIntent(Intent arg0) {
+		Log.v(TAG, "Intent "+arg0.getAction());
+		if (ACTION_SET.equals(arg0.getAction())) {
+			doSwitch(arg0.getIntExtra(EXTRA_CONNECTION, 0), arg0.getStringExtra(EXTRA_OUT));
 		}
 	}
 
-	
-	/*
-	 * Binder-Krams
-	 */
-	private final IBinder mBinder = new LocalBinder();
-	public class LocalBinder extends Binder {
-		CommService getService() {return CommService.this;}
-	}
-	@Override public IBinder onBind(Intent intent) { return mBinder; }
 
-	/*
-	 * internes
-	 */
-	private Parameter param;
-	private CommunicatorListener listener;
-
-	
-	public CommService setParameter(Parameter aParam) {
-		this.param = aParam;
-		return this;
-	}
-	
-	
-	public CommService setListener(CommunicatorListener aListen) {
-		listener = aListen;
-		return this;
-	}
-	
-	
-	public void clearListener() {
-		listener = null;
-	}
-	
-
-	public CommService start() {
-		if (param.port>0 || !TextUtils.isEmpty(param.ip)) {
-			new Commander().execute(
+	protected void start(int connection) {
+//		if (param.port>0 || !TextUtils.isEmpty(param.ip)) {
+			new Commander(connection).execute(
 					cStatus, "port list", "250 ",
 					cAlias, "alias", "250 ");
-		}  
-		return this;
 	}
-
 	
-	public void doSwitch(int b, boolean state) {
-		new Commander().execute(
+	
+	protected void doSwitch(int connection, int b, boolean state) {
+		new Commander(connection).execute(
 				cSet, "port"+" "+b+" "+(state ? "1" : "0"), null,
 				cStatus, "port list", "250 ");
 	}
 	
 	
-	public void doSwitch(String command) {
-		new Commander().execute(
+	protected void doSwitch(int connection, String command) {
+		new Commander(connection).execute(
 				cSet, "port list "+command, null,
 				cStatus, "port list", "250 ");
 	}
 
 	
+	private void doStatus(int connection) {
+		new Commander(connection).execute(
+				cStatus, "port list", "250 ");
+	}
+	
+	
 	private class Commander extends AsyncTask<String, String, Void> {
 		private PrintWriter out;
 		private BufferedReader in;
-				
+		private Connection c;
+		
+		private Commander(int connection) {
+			super();
+			c = ConnectionList.getConnection(connection);
+		}
+		
+		
 		@Override
 		protected  Void doInBackground(String... params) {
 			synchronized (CommService.this) {
@@ -134,14 +130,15 @@ public class CommService extends Service {
 		}
 		
 		private Void doIt(String... params) {
+			Log.v(TAG, "doIt!");
 			Socket s = null;
 			try {
 				s = new Socket();
-				s.connect(new InetSocketAddress(param.ip, param.port), param.timeout*1000);
+				s.connect(new InetSocketAddress(c.getIp(), c.getPort()), c.getTimeout()*1000);
 				out = new PrintWriter(s.getOutputStream(), true);
 	        	in = new BufferedReader(new InputStreamReader(s.getInputStream()), 1024);
 	        	command(null, "100 HELLO", null);
-	        	command("login "+param.username+" "+param.password, "250 OK", null);
+	        	command("login "+c.getUsername()+" "+c.getPassword(), "250 OK", null);
 	        	for (int i=0; i<params.length / 3; i++) {
 	        		command(params[3*i+1], params[3*i+2], params[3*i]);
 	        	}
@@ -173,12 +170,15 @@ public class CommService extends Service {
 		 * mit zweien, ist alles richtig gelaufen und im zweiten steht die Rückmeldung 
 		 */
 		@Override protected void onProgressUpdate(String... values) {
-			if (CommService.this.listener != null)
+			Listener l = c.getListener();
+			Log.v(TAG, "onUpdate "+l);
+			if (l != null) {
 				if (values.length==1) {
-					CommService.this.listener.onError(values[0]);
+					l.onError(values[0]);
 				} else {
-					CommService.this.listener.onCommand(values[0], values[1]);
+					l.onCommand(values[0], values[1]);
 				}
+			}
 		}
 
 	}
