@@ -10,63 +10,28 @@ import java.net.Socket;
 import android.app.IntentService;
 import android.content.Intent;
 import android.os.AsyncTask;
-import android.os.Binder;
-import android.os.IBinder;
 import android.util.Log;
 import de.jockels.netioswitch.Connection.Listener;
 
 public class CommService extends IntentService {
-	@SuppressWarnings("unused")
 	private final static String TAG = "CommService";
 
-	/*
-	 * Die gültigen Befehle
-	 */
+	// die gültigen Steckdosen-Befehle
 	public final static String cAlias = "alias";
 	public final static String cStatus = "status";
 	public final static String cSet = "set";
 	public final static String cError = "error";
 	
-	public final static String ACTION_SET = cSet;
-	public final static String EXTRA_OUT = EventDb.OUTPUT;
-	public final static String EXTRA_CONNECTION = "connection";
-
-
-	/**
-	 * Binder-Krams
-	 * 
-	 * Die von außen erreichbaren Funktionen sind nicht einfach das Interface des Service,
-	 * sondern pro Binder wird ein Set von Steckdosen-Parametern und einem Listener
-	 * abgespeichert
-	 */
-	public class CommBinder extends Binder {
-		private int mConnection;
-		public void setConnectionIndex(int i) { mConnection = i; }
-		
-		public CommBinder start() { 
-			CommService.this.start(mConnection); 
-			return this;
-		}
-		
-		public void doSwitch(int b, boolean state) {
-			CommService.this.doSwitch(mConnection, b, state); 
-		}
-
-		public void doSwitch(String command) { 
-			CommService.this.doSwitch(mConnection, command); 
-		}
-
-		public void doStatus() { 
-			CommService.this.doStatus(mConnection);
-		}
-	}
+	// die Intents
+	public final static String ACTION_START = "start";
+	public final static String ACTION_STATUS = "status";
+	public final static String ACTION_SETALL = "setall";
+	public final static String ACTION_SETONE = "setone";
+	public final static String EXTRA_CONNECTION = "connection";		// bei allen
+	public final static String EXTRA_OUT = "out";									// bei SETALL
+	public final static String EXTRA_PORT = "port";								// bei SETONE
+	public final static String EXTRA_EA = "ea";										// bei SETONE
 	
-	
-	@Override public IBinder onBind(Intent intent) { 
-		Log.v(TAG, "onBind");
-		return new CommBinder();
-	}
-
 	
 	public CommService() { 
 		super("CommService"); 
@@ -76,40 +41,29 @@ public class CommService extends IntentService {
 	@Override
 	protected void onHandleIntent(Intent arg0) {
 		Log.v(TAG, "Intent "+arg0.getAction());
-		if (ACTION_SET.equals(arg0.getAction())) {
-			doSwitch(arg0.getIntExtra(EXTRA_CONNECTION, 0), arg0.getStringExtra(EXTRA_OUT));
+		int idx = arg0.getIntExtra(EXTRA_CONNECTION, 0);
+		String cmd = arg0.getAction();
+
+		if (ACTION_SETALL.equals(cmd)) {
+			new Commander(idx).execute(
+					cSet, "port list "+arg0.getStringExtra(EXTRA_OUT), null,
+					cStatus, "port list", "250 ");
+		} else if (ACTION_SETONE.equals(cmd)) {
+			new Commander(idx).execute(
+					cSet, "port"+" "+arg0.getIntExtra(EXTRA_PORT, 0)+" "
+							+(arg0.getBooleanExtra(EXTRA_EA, false) ? "1" : "0"), null,
+					cStatus, "port list", "250 ");
+		} else if (ACTION_START.equals(cmd)) {
+			new Commander(idx).execute(
+					cStatus, "port list", "250 ",
+					cAlias, "alias", "250 ");
+		} else if (ACTION_STATUS.equals(cmd)) {
+			new Commander(idx).execute(
+					cStatus, "port list", "250 ");
 		}
 	}
 
 
-	protected void start(int connection) {
-//		if (param.port>0 || !TextUtils.isEmpty(param.ip)) {
-			new Commander(connection).execute(
-					cStatus, "port list", "250 ",
-					cAlias, "alias", "250 ");
-	}
-	
-	
-	protected void doSwitch(int connection, int b, boolean state) {
-		new Commander(connection).execute(
-				cSet, "port"+" "+b+" "+(state ? "1" : "0"), null,
-				cStatus, "port list", "250 ");
-	}
-	
-	
-	protected void doSwitch(int connection, String command) {
-		new Commander(connection).execute(
-				cSet, "port list "+command, null,
-				cStatus, "port list", "250 ");
-	}
-
-	
-	private void doStatus(int connection) {
-		new Commander(connection).execute(
-				cStatus, "port list", "250 ");
-	}
-	
-	
 	private class Commander extends AsyncTask<String, String, Void> {
 		private PrintWriter out;
 		private BufferedReader in;
@@ -130,7 +84,6 @@ public class CommService extends IntentService {
 		}
 		
 		private Void doIt(String... params) {
-			Log.v(TAG, "doIt!");
 			Socket s = null;
 			try {
 				s = new Socket();
@@ -171,7 +124,6 @@ public class CommService extends IntentService {
 		 */
 		@Override protected void onProgressUpdate(String... values) {
 			Listener l = c.getListener();
-			Log.v(TAG, "onUpdate "+l);
 			if (l != null) {
 				if (values.length==1) {
 					l.onError(values[0]);

@@ -136,10 +136,10 @@ public class Event extends Content {
 	
 	private void fireEvent() {
 		Intent i = new Intent(mCtx, CommService.class);
-		i.setAction(CommService.ACTION_SET);
-		i.putExtra(CommService.EXTRA_OUT, s[OUT]);
+		i.setAction(CommService.ACTION_SETALL);
 		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
-//		mCtx.startService(i);
+		i.putExtra(CommService.EXTRA_OUT, s[OUT]);
+		mCtx.startService(i);
 	}
 	
 	
@@ -201,6 +201,33 @@ public class Event extends Content {
 		mReceiver = null;
 		mRunnable = null;
 		mRunning = false;
+	}
+
+	
+	/**
+	 * dynamisch erzeugte Broadcast-Receiver etc. pausieren beim App-Ende
+	 */
+	public void pause() {
+		if (!mRunning) return;
+		Log.v(TAG, "Pause Event "+s[NAME]);
+		switch (i[TYPE]) {
+
+		case EventDb.TYP_WLAN_BETRETEN: 
+		case EventDb.TYP_WLAN_VERLASSEN:
+			if (mReceiver!=null)	 mCtx.unregisterReceiver(mReceiver);
+			mReceiver = null;
+			mRunning = false;
+			break;
+
+		case EventDb.TYP_SECONDS:
+			if (mRunnable!=null) mRunnable.stop();
+			mRunnable = null;
+			mRunning = false;
+			break;
+
+		default:
+			Log.e(TAG, "Eventtyp nicht implementiert: "+i[TYPE]);
+		}
 	}
 
 	

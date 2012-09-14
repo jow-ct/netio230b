@@ -1,15 +1,11 @@
 package de.jockels.netioswitch;
 
 import android.app.ListActivity;
-import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -29,7 +25,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 import de.jockels.lib.StringTools;
-import de.jockels.netioswitch.CommService.CommBinder;
 import de.jockels.netioswitch.Connection.Listener;
 
 /**
@@ -50,10 +45,9 @@ import de.jockels.netioswitch.Connection.Listener;
 public class NetioActivity extends ListActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
 	private final static String TAG = "NetioActivity";
 	private final static boolean DEBUG = true;
-	private CommBinder mComm;
-	private boolean mBound = false;
 	private SharedPreferences mCfg;
 	private boolean mReconnectNeeded = false;
+	private boolean mConnected = false;
 	private EventDb mDb;
 	
 	private TextView id, error;
@@ -73,6 +67,9 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		// Event-Liste erzeugen und anpassen
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
+		
+		// Bug?!
+		try { Class.forName("android.os.AsyncTask"); } catch (ClassNotFoundException e) { }
 		
 		// Konfigurationsdatei öffnen
 		mCfg = PreferenceManager.getDefaultSharedPreferences(this);
@@ -114,9 +111,9 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		Log.v(TAG, "onStart");
 		if (mReconnectNeeded) {
 			if (mCfg.getBoolean("autoconnect", false)) 
-				startComm();
+				commStart();
 			else {
-				stopComm();
+				commStop();
 				setDisable("(kein Autostart)");
 			}
 			mReconnectNeeded = false;
@@ -126,91 +123,111 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	
 	@Override protected void onDestroy() {
 		Log.v(TAG, "onDestroy");
-		stopComm();
+		pauseEvents();
+		commStop();
 		mDb.close();
 		super.onDestroy();
 	}
 
 	
 	/**
-	 * Service-Connection herstellen
-	 */
-	private ServiceConnection mConnection = new ServiceConnection() {
-		public void onServiceConnected(ComponentName name, IBinder service) {
-			mComm = (CommBinder) service;
-			mBound = true;
-			if (DEBUG) Log.v(TAG, "onServiceConnected");
-			
-			// jetzt Verbindung herstellen
-			setDisable("verbinde mit "+mCfg.getString("ip", "")+" ...");
-			mComm.setConnectionIndex(0); // TODO bei mehreren Steckdosen anders
-			ConnectionList.getConnection(0).setListener(new CommListener());
-			mComm.start();
-			
-			// Reloader
-			int reload = StringTools.tryParseInt(mCfg.getString("reload", ""));
-			if (reload>0) {
-				mReloader = new Reloader(reload);
-				mReloader.start();
-				Toast toast = Toast.makeText(NetioActivity.this, 
-						"Reload alle "+reload+" s gestartet", Toast.LENGTH_LONG);
-				toast.setGravity(Gravity.CENTER, 0, 0);
-				toast.show();
-			} else
-				mReloader = null;
-		}
-
-		public void onServiceDisconnected(ComponentName name) {
-			if (DEBUG) Log.v(TAG, "onServiceDisconnected");
-			mBound = false;
-		}
-	};
-
-	
-	/**
 	 * Kommunikation mit einer Steckdose beginnen
 	 */
-	private void startComm() {
+	private void commStart() {
 		if (DEBUG) Log.v(TAG, "startComm");
-		stopComm();
-		bindService(new Intent(this, CommService.class), mConnection, Context.BIND_AUTO_CREATE);
-	}
-	
-	
-	private void startEvents() {
-		int c = EventList.refreshEvents(mDb, new Connection(mCfg));
-		int s = EventList.startEvents(this);
-		Toast.makeText(this, c+" Events geladen, davon "+s+" gestartet", Toast.LENGTH_SHORT).show();
-		// TODO ChoiceFormat
-	}
-	
-	
-	private void stopEvents() {
-		int s = EventList.stopEvents();
-		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
-		// TODO ChoiceFormat
-		// http://docs.oracle.com/javase/tutorial/i18n/format/choiceFormat.html
+		commStop();
+		
+		// jetzt Verbindung herstellen
+		setDisable("verbinde mit "+mCfg.getString("ip", "")+" ...");
+		ConnectionList.getConnection(0).setListener(new CommListener());
+		mConnected = true;
+		commStatus();
+
+		// Reloader
+		int reload = StringTools.tryParseInt(mCfg.getString("reload", ""));
+		if (reload>0) {
+			mReloader = new Reloader(reload);
+			mReloader.start();
+			Toast toast = Toast.makeText(NetioActivity.this, 
+					"Reload alle "+reload+" s gestartet", Toast.LENGTH_LONG);
+			toast.setGravity(Gravity.CENTER, 0, 0);
+			toast.show();
+		} else
+			mReloader = null;
+
 	}
 	
 	
 	/**
 	 * Kommunikation stoppen
 	 */
-	private void stopComm() {
-		if (DEBUG) Log.v(TAG, "stopComm "+mBound);
-		if (mBound) {
-			unbindService(mConnection);
-			setDisable("Verbindung getrennt");
-			ConnectionList.getConnection(0).clearListener();
-			if (mReloader!=null) {
-				mReloader.stop();
-				mReloader = null;
-			}
+	private void commStop() {
+		if (DEBUG) Log.v(TAG, "stopComm "+mConnected);
+		if (!mConnected) return;
+		setDisable("Verbindung getrennt");
+		ConnectionList.getConnection(0).clearListener();
+		if (mReloader!=null) {
+			mReloader.stop();
+			mReloader = null;
 		}
-		mBound = false;
+		mConnected = false;
 	}
 
 	
+	private void commStatus() {
+		if (!mConnected) return;
+		Intent i = new Intent(this, CommService.class);
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.setAction(CommService.ACTION_START);
+		this.startService(i);
+	}
+
+	
+	private void commSwitch(String o) {
+		if (!mConnected) return;
+		Intent i = new Intent(this, CommService.class);
+		i.setAction(CommService.ACTION_SETALL);
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.putExtra(CommService.EXTRA_OUT, o);
+		this.startService(i);
+	}
+
+	
+	private void commSwitch(int port, boolean ea) {
+		if (!mConnected) return;
+		Intent i = new Intent(this, CommService.class);
+		i.setAction(CommService.ACTION_SETONE);
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.putExtra(CommService.EXTRA_PORT, port);
+		i.putExtra(CommService.EXTRA_EA, ea);
+		this.startService(i);
+	}
+
+	
+	/**
+	 * Events starten/stoppen
+	 */
+	private void startEvents() {
+		int c = EventList.refreshEvents(mDb, new Connection(mCfg));
+		int s = EventList.startEvents(this);
+		Toast.makeText(this, c+" Events geladen, davon "+s+" gestartet", Toast.LENGTH_SHORT).show();
+		// TODO ChoiceFormat
+		// http://docs.oracle.com/javase/tutorial/i18n/format/choiceFormat.html
+	}
+	
+	
+	private void stopEvents() {
+		int s = EventList.stopEvents();
+		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
+	}
+
+	
+	private void pauseEvents() {
+		int s = EventList.pauseEvents();
+		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
+	}
+	
+
 	/**
 	 * Klasse zum regelmäßigen Abfragen einer Steckdose
 	 *
@@ -242,7 +259,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 				i.setEnabled(false);
 				i.setChecked(false);
 			}
-			mComm.doStatus();
+			commStatus();
 			if (mReload>0) mHandler.postDelayed(this, mReload);
 		}
 	}
@@ -309,10 +326,10 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 			startActivity(new Intent(this, Einstellungen.class));
 			return true;    
 		case R.id.itemStart:
-			startComm();
+			commStart();
 			return true;
 		case R.id.itemStop:
-			stopComm();
+			commStop();
 			return true;
 		case R.id.itemEventNew:
 			startActivityForResult(new Intent(this, EventEdit.class), ACTIVITY_CREATE);
@@ -373,15 +390,15 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		public void onClick(View v) {
 			for (int i=0; i<4; i++) {
 				if (b[i]==v) {
-					mComm.doSwitch(i+1, ((ToggleButton)v).isChecked());
+					commSwitch(i+1, ((ToggleButton)v).isChecked());
 					v.setEnabled(false);
 					return;
 				}
 			}
 			// keiner der vier Einzelknöpfe gedrückt, also "alle ein" oder "alle aus"
 			for (ToggleButton t : b) {t.setEnabled(false);} // alle deaktivieren
-			if (v==a[0]) mComm.doSwitch("1111");
-			if (v==a[1]) mComm.doSwitch("0000");
+			if (v==a[0]) commSwitch("1111");
+			if (v==a[1]) commSwitch("0000");
 		}
 	}
 

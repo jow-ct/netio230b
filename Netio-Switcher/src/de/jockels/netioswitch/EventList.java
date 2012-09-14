@@ -56,5 +56,16 @@ public class EventList {
 			}
 		return s;
 	}
+
+	
+	public final static int pauseEvents() {
+		int s=0;
+		for (Event e : mList) 
+			if (e.isRunning()) {
+				e.pause();
+				s++;
+			}
+		return s;
+	}
 	
 }
