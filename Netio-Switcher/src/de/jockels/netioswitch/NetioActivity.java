@@ -19,6 +19,7 @@ import android.view.View.OnClickListener;
 import android.widget.AdapterView.AdapterContextMenuInfo;
 import android.widget.Button;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleCursorAdapter.ViewBinder;
 import android.widget.TextView;
@@ -50,7 +51,8 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	private boolean mConnected = false;
 	private EventDb mDb;
 	
-	private TextView id, error;
+	private TextView id, error, reload;
+	private ProgressBar loading;
 	private ToggleButton[] b = new ToggleButton[4];
 	private Button[] a = new Button[2];
 
@@ -82,11 +84,13 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		mDb = new EventDb(this);
 		mDb.open();
 		fillData();
-		startEvents();
+		if (mCfg.getBoolean("autoevent", false)) startEvents();
 		
 		// Zeiger auf Steuerelement basteln und Knöppe auf inaktiv schalten 
 		id = (TextView)findViewById(R.id.textView0);
 		error = (TextView)findViewById(R.id.textView1);
+		reload = (TextView)findViewById(R.id.textView4);
+		loading = (ProgressBar)findViewById(R.id.progressBar1);
 		b[0] = (ToggleButton)findViewById(R.id.toggleButton1);
 		b[1] = (ToggleButton)findViewById(R.id.toggleButton2);
 		b[2] = (ToggleButton)findViewById(R.id.toggleButton3);
@@ -144,16 +148,19 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		commStatus();
 
 		// Reloader
-		int reload = StringTools.tryParseInt(mCfg.getString("reload", ""));
-		if (reload>0) {
-			mReloader = new Reloader(reload);
+		int r = StringTools.tryParseInt(mCfg.getString("reload", ""));
+		if (r>0) {
+			// Reloader anwerfen
+			mReloader = new Reloader(r);
 			mReloader.start();
-			Toast toast = Toast.makeText(NetioActivity.this, 
-					"Reload alle "+reload+" s gestartet", Toast.LENGTH_LONG);
-			toast.setGravity(Gravity.CENTER, 0, 0);
-			toast.show();
-		} else
+			// Anzeige
+			reload.setVisibility(View.VISIBLE);
+			reload.setText(r+" s reload");
+		} else {
 			mReloader = null;
+			reload.setVisibility(View.GONE);
+			loading.setVisibility(View.GONE);
+		}
 
 	}
 	
@@ -170,6 +177,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 			mReloader.stop();
 			mReloader = null;
 		}
+		reload.setVisibility(View.GONE);
 		mConnected = false;
 	}
 
@@ -177,7 +185,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	private void commStatus() {
 		if (!mConnected) return;
 		Intent i = new Intent(this, CommService.class);
-		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); 
 		i.setAction(CommService.ACTION_START);
 		this.startService(i);
 	}
@@ -187,7 +195,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		if (!mConnected) return;
 		Intent i = new Intent(this, CommService.class);
 		i.setAction(CommService.ACTION_SETALL);
-		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); 
 		i.putExtra(CommService.EXTRA_OUT, o);
 		this.startService(i);
 	}
@@ -197,7 +205,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		if (!mConnected) return;
 		Intent i = new Intent(this, CommService.class);
 		i.setAction(CommService.ACTION_SETONE);
-		i.putExtra(CommService.EXTRA_CONNECTION, 0); // TODO mehrere Steckdosen
+		i.putExtra(CommService.EXTRA_CONNECTION, 0); 
 		i.putExtra(CommService.EXTRA_PORT, port);
 		i.putExtra(CommService.EXTRA_EA, ea);
 		this.startService(i);
@@ -255,6 +263,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		
 		public void run() {
 			Log.v(TAG, "ticktack");
+			loading.setVisibility(View.VISIBLE);
 			for (ToggleButton i : b) {
 				i.setEnabled(false);
 				i.setChecked(false);
@@ -431,6 +440,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 					b[i].setEnabled(true);
 					b[i].setChecked(result.charAt(i)=='1');
 				}
+				if (mReloader!=null) loading.setVisibility(View.GONE);
 				
 			} else if (CommService.cSet.equals(command)) {
 				// keine Aktion

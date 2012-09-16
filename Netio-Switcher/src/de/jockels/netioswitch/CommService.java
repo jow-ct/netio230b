@@ -63,7 +63,7 @@ public class CommService extends IntentService {
 		}
 	}
 
-
+	
 	private class Commander extends AsyncTask<String, String, Void> {
 		private PrintWriter out;
 		private BufferedReader in;

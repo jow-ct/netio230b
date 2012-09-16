@@ -21,9 +21,7 @@ public class EventList {
 		mList = new ArrayList<Event>();
 		Cursor c = db.queryEvents(null, EventDb.ACTIVE+"=1"); 
 		if (c.moveToFirst()) do {
-			Event e = Event.eventHelper.createFromCursor(c);
-			e.setParameter(p);
-			mList.add( e );
+			mList.add(Event.eventHelper.createFromCursor(c));
 		} while (c.moveToNext());
 		Log.v(TAG, mList.size()+" Events erzeugt");
 		c.close();
@@ -34,12 +32,11 @@ public class EventList {
 	public final static int startEvents(Context ctx) {
 		int s = 0;
 		for (Event e : mList) {
-			if (e.isValid()) {
+			if (e.error()==0) {
 				e.start(ctx);
 				s++;
 			} else {
 				e.i[Event.ACTIVE] = 0;
-				// TODO update
 			}
 		}
 		Log.i(TAG, s+" Events gestartet.");

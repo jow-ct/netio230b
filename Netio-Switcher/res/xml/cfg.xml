@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
-<PreferenceCategory android:title="@string/cfg_steckdose">
+<PreferenceCategory android:title="@string/cfg_autostart">
     <CheckBoxPreference 
     	android:title="@string/cfg_autoconnect_short" 
     	android:summary="@string/cfg_autoconnect_long" 
     	android:key="autoconnect" />
+    <CheckBoxPreference 
+    	android:title="@string/cfg_autoevent_short" 
+    	android:summary="@string/cfg_autoevent_long" 
+    	android:key="autoevent" />
     <EditTextPreference 
     	android:summary="@string/cfg_reload_long" 
     	android:title="@string/cfg_reload_short" 
     	android:inputType="number"
     	android:key="reload" />
+</PreferenceCategory>    
+<PreferenceCategory android:title="@string/cfg_steckdose">
     <EditTextPreference 
     	android:summary="@string/cfg_ip_long" 
     	android:title="@string/cfg_ip_short" 

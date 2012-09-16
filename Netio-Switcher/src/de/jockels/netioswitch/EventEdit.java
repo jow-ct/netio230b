@@ -64,12 +64,12 @@ public class EventEdit extends Activity {
 		
 		// DialogHelper
 		mHelper = new DialogHelper<Event>(this, Event.eventHelper, Event.class)
-				.addDescription(Event.NAME, name1, "darf nicht leer sein")
-				.addDescription(Event.EXT1, ext1, "darf nicht leer sein")
-				.addDescription(Event.EXT2, ext2, "darf nicht leer sein")
-				.addDescription(Event.OUT, out1, "genau vier Zeichen, nur 1, 0, i, u")
-				.addDescription(Event.ACTIVE, active1)
-				.addDescription(Event.TYPE, typ1);
+				.addConnection(Event.NAME, name1)
+				.addConnection(Event.EXT1, ext1)
+				.addConnection(Event.EXT2, ext2)
+				.addConnection(Event.OUT, out1)
+				.addConnection(Event.ACTIVE, active1)
+				.addConnection(Event.TYPE, typ1);
 		
 		// neuer Typ bewirkt, dass geänderte Namen angezeigt werden
 		typ1.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -195,11 +195,12 @@ public class EventEdit extends Activity {
 
 	
 	public void testActive() {
-		if (!mHelper.isValid()) {
+		int error = mHelper.error();
+		if (error>0) {
 			active1.setChecked(false);
 			mHelper.current.i[Event.ACTIVE] = 0;
 			Toast.makeText(getApplicationContext(), 
-					"Event kann nicht aktiviert werden,  da nicht alle Felder korrekt ausgefüllt sind.", 
+					"Event kann nicht aktiviert werden: "+getString(error), 
 					Toast.LENGTH_SHORT).show();
 		}
 	}
