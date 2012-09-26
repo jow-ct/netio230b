@@ -29,12 +29,13 @@ public class EventDb {
 	public final static int TYP_WLAN_VERLASSEN = 1;
 	public final static int TYP_TIME = 2;
 	public final static int TYP_TEST = 3;
+	public final static int MAX_TYPE = 3;
 	
 	public final static String UNUSED = "-";
 	public final static String[][] NAMEN = new String[][] {
 		{"WLAN-Name", UNUSED},		// WLAN betreten
 		{"WLAN-Name", UNUSED},		// WLAN verlassen
-		{"Sekunden (min. 5)", UNUSED}		// Timer (während App)
+		{"Minuten (min. 1)", UNUSED}		// Timer (während App)
 	};
 	
 	/** Internes */

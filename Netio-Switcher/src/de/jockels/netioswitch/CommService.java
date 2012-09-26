@@ -15,6 +15,7 @@ import de.jockels.netioswitch.Connection.Listener;
 
 public class CommService extends IntentService {
 	private final static String TAG = "CommService";
+	private final static boolean DEBUG = true;
 
 	// die gültigen Steckdosen-Befehle
 	public final static String cAlias = "alias";
@@ -40,7 +41,7 @@ public class CommService extends IntentService {
 	
 	@Override
 	protected void onHandleIntent(Intent arg0) {
-		Log.v(TAG, "Intent "+arg0.getAction());
+		if (DEBUG) Log.v(TAG, "Intent "+arg0.getAction());
 		int idx = arg0.getIntExtra(EXTRA_CONNECTION, 0);
 		String cmd = arg0.getAction();
 
@@ -72,6 +73,7 @@ public class CommService extends IntentService {
 		private Commander(int connection) {
 			super();
 			c = ConnectionList.getConnection(connection);
+			if (DEBUG) Log.v(TAG, "connection: "+c.getIp()+":"+c.getPort()+", User "+c.getUsername());
 		}
 		
 		
@@ -97,6 +99,7 @@ public class CommService extends IntentService {
 	        	}
 	        	command("quit", null, null);
 			} catch (IOException e) {
+				if (DEBUG) Log.v(TAG, "error "+e.getMessage());
 				publishProgress(e.getMessage());
 			} finally {
 				try {if (s!=null) s.close();} catch (IOException e) {}
@@ -123,6 +126,10 @@ public class CommService extends IntentService {
 		 * mit zweien, ist alles richtig gelaufen und im zweiten steht die Rückmeldung 
 		 */
 		@Override protected void onProgressUpdate(String... values) {
+			if (DEBUG) if (values.length==1)
+				Log.v(TAG, "onProgressUpdate: error="+values[0]);
+			else
+				Log.v(TAG, "onProgressUpdate: command="+values[0]+", result="+values[1]);
 			Listener l = c.getListener();
 			if (l != null) {
 				if (values.length==1) {

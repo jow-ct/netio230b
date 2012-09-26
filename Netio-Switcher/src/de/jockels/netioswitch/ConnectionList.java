@@ -2,14 +2,17 @@ package de.jockels.netioswitch;
 
 import java.util.ArrayList;
 
+import android.content.Context;
+import android.preference.PreferenceManager;
+
 public class ConnectionList {
-	private static ArrayList<Connection> mConnection = new ArrayList<Connection>(5);
+	private static ArrayList<Connection> mConnection;
 	
-	public static int addConnection(Connection c) {
-		mConnection.add(c);
-		return mConnection.size();
+	public static void initConnections(Context ctx) {
+		mConnection = new ArrayList<Connection>(1);
+		mConnection.add(new Connection(PreferenceManager.getDefaultSharedPreferences(ctx)));
 	}
-	
+
 	public static Connection getConnection(int i) {
 		return mConnection.get(i);
 	}
@@ -18,8 +21,5 @@ public class ConnectionList {
 		return mConnection.size();
 	}
 	
-	public static void clearConnections() {
-		mConnection = new ArrayList<Connection>(5);
-	}
 	
 }

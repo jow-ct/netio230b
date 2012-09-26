@@ -1,12 +1,8 @@
 package de.jockels.netioswitch;
 
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.os.Handler;
 import android.text.TextUtils;
-import android.util.Log;
 import de.jockels.forms.Content;
 import de.jockels.forms.ContentHelper;
 import de.jockels.lib.StringTools;
@@ -29,15 +25,10 @@ import de.jockels.lib.StringTools;
  * - Intent.ACTION_SHUTDOWN;
  * - Intent.ACTION_TIME_TICK;
  * 
- * TODO für WLAN:
- * file:///C:/Android/sdk/docs/training/monitoring-device-state/connectivity-monitoring.html
- * 
  */
 
 public class Event extends Content {
 	private final static String TAG = "Event";
-
-	
 	
 	public static final int NAME = 0;
 	public static final int EXT1 = 1;
@@ -55,11 +46,6 @@ public class Event extends Content {
 		.addBoolean(EventDb.ACTIVE)
 		.addInt(EventDb.TYPE);
 
-	private Context mCtx;
-	private boolean mRunning = false;
-	private Ticktack mRunnable = null;
-	private BroadcastReceiver mReceiver = null;
-	
 	/**
 	 * ein leerer Event
 	 */
@@ -72,8 +58,8 @@ public class Event extends Content {
 	/**
 	 * Get-Helfer
 	 */
-	public int getExt1Int(int def) { return StringTools.tryParseInt(s[EXT1], def); }
-	public int getExt2Int(int def) { return StringTools.tryParseInt(s[EXT2], def); }
+	public long getExt1Long(long def) { return StringTools.tryParseLong(s[EXT1], def); }
+	public long getExt2Long(long def) { return StringTools.tryParseLong(s[EXT2], def); }
 	
 	
 	/**
@@ -97,22 +83,22 @@ public class Event extends Content {
 			return 0;
 			
 		// Type ist gültig, wenn im vorgegebenen Rahmen
-		case TYPE: return i[TYPE] >= 0 && i[TYPE] < EventDb.NAMEN.length ? 0 : R.string.eventerror_typ;
+		case TYPE: return l[TYPE] >= 0 && l[TYPE] < EventDb.MAX_TYPE ? 0 : R.string.eventerror_typ;
 		
 		// EXT1 ist gültig, wenn nicht leer oder wenn leer erlaubt
 		case EXT1:
 			if (error(TYPE) != 0) return R.string.eventerror_typ;
-			if (TextUtils.isEmpty(s[EXT1]) && !EventDb.UNUSED.equals(EventDb.NAMEN[i[TYPE]][0])) return R.string.eventerror_ext11;
-			switch (i[TYPE]) {
-			case EventDb.TYP_TIME: return getExt1Int(0)>4 ? 0 : R.string.eventerror_ext12; // nur 5s oder mehr erlaubt
-			}
+			if (TextUtils.isEmpty(s[EXT1]) && !EventDb.UNUSED.equals(EventDb.NAMEN[getInt(TYPE)][0])) return R.string.eventerror_ext11;
 			// sonstige typabhängige Überprüfungen
+			switch (getInt(TYPE)) {
+			case EventDb.TYP_TIME: return getExt1Long(0)>0 ? 0 : R.string.eventerror_ext12; // nur Zahlen ab 1 erlaubt
+			}
 			return 0;
 			
 		// EXT2 ist gültig, wenn nicht leer oder wenn leer erlaubt
 		case EXT2:
 			if (error(TYPE) != 0) return R.string.eventerror_typ;
-			if (TextUtils.isEmpty(s[EXT2]) && !EventDb.UNUSED.equals(EventDb.NAMEN[i[TYPE]][1])) return R.string.eventerror_ext21;
+			if (TextUtils.isEmpty(s[EXT2]) && !EventDb.UNUSED.equals(EventDb.NAMEN[getInt(TYPE)][1])) return R.string.eventerror_ext21;
 			// sonstige typabhängige Überprüfungen
 			return 0;
 		
@@ -122,128 +108,15 @@ public class Event extends Content {
 
 	
 	/**
-	 * läuft der Event?
-	 * @return
+	 * Feuert den Event ab. Sollte nur von den BroadcastReceivern aufgerufen werden,
+	 * aber z.B. zu Testzwecken auch sonst möglich
 	 */
-	public boolean isRunning() { return mRunning; }
-	
-	
-	private void fireEvent() {
-		Intent i = new Intent(mCtx, CommService.class);
+	public void fireEvent(Context ctx) {
+		Intent i = new Intent(ctx, CommService.class);
 		i.setAction(CommService.ACTION_SETALL);
 		i.putExtra(CommService.EXTRA_CONNECTION, 0); 
 		i.putExtra(CommService.EXTRA_OUT, s[OUT]);
-		mCtx.startService(i);
+		ctx.startService(i);
 	}
 	
-	
-	/**
-	 * Broadcast-Receiver oder ähnliches starten. Sollte dann mit stop() wieder angehalten werden.
-	 */
-	public void start(Context aCtx) {
-		if (i[ACTIVE]==0) return;
-		Log.v(TAG, "Start Event "+s[NAME]);
-		mCtx = aCtx;
-		switch (i[TYPE]) {
-
-		case EventDb.TYP_WLAN_BETRETEN: 
-		case EventDb.TYP_WLAN_VERLASSEN:
-			IntentFilter ifl = new IntentFilter(Intent.ACTION_HEADSET_PLUG);
-			mReceiver = new BroadcastReceiver() {
-				@Override
-				public void onReceive(Context context, Intent intent) {
-					Log.v(TAG, "Intent "+intent);
-					fireEvent(); 
-				}
-			};
-			Intent sticky = mCtx.registerReceiver(mReceiver, ifl);
-			if (sticky!=null) Log.v(TAG, "sticky: "+sticky);
-			break;
-
-		case EventDb.TYP_TIME:
-			mRunnable = new Ticktack(getExt1Int(0));
-			break;
-
-		default:
-			Log.e(TAG, "Eventtyp nicht implementiert: "+i[TYPE]);
-		}
-		mRunning = true;
-	}
-
-	
-	/**
-	 * Broadcast-Receiver oder ähnliches wieder stoppen
-	 */
-	public void stop() {
-		if (!mRunning) return;
-		Log.v(TAG, "Stop Event "+s[NAME]);
-		switch (i[TYPE]) {
-
-		case EventDb.TYP_WLAN_BETRETEN: 
-		case EventDb.TYP_WLAN_VERLASSEN:
-			if (mReceiver!=null)	 mCtx.unregisterReceiver(mReceiver);
-			break;
-
-		case EventDb.TYP_TIME:
-			if (mRunnable!=null) mRunnable.stop();
-			break;
-
-		default:
-			Log.e(TAG, "Eventtyp nicht implementiert: "+i[TYPE]);
-		}
-		mReceiver = null;
-		mRunnable = null;
-		mRunning = false;
-	}
-
-	
-	/**
-	 * dynamisch erzeugte Broadcast-Receiver etc. pausieren beim App-Ende
-	 */
-	public void pause() {
-		if (!mRunning) return;
-		Log.v(TAG, "Pause Event "+s[NAME]);
-		switch (i[TYPE]) {
-
-		case EventDb.TYP_WLAN_BETRETEN: 
-		case EventDb.TYP_WLAN_VERLASSEN:
-			if (mReceiver!=null)	 mCtx.unregisterReceiver(mReceiver);
-			mReceiver = null;
-			mRunning = false;
-			break;
-
-		case EventDb.TYP_TIME:
-			if (mRunnable!=null) mRunnable.stop();
-			mRunnable = null;
-			mRunning = false;
-			break;
-
-		default:
-			Log.e(TAG, "Eventtyp nicht implementiert: "+i[TYPE]);
-		}
-	}
-
-	
-	private class Ticktack implements Runnable {
-		int mTime;
-		Handler mHandler;
-		Ticktack(int t) {
-			mTime = t*1000;
-			mHandler = new Handler();
-			mHandler.postDelayed(this, mTime);
-		}
-		
-		void stop() {
-			Log.v(TAG, "Runnable-Stop");
-			mHandler.removeCallbacks(this);
-			mHandler = null;
-		}
-
-		public void run() {
-			Log.v(TAG, "Event "+s[NAME]);
-			fireEvent();
-			if (mHandler!=null) mHandler.postDelayed(this, mTime);
-		}
-		
-	}
 }

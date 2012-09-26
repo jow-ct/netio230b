@@ -30,7 +30,7 @@ public class EventEdit extends Activity {
 	private EditText name1, ext1, ext2, out1;
 	private CheckBox active1;
 	private Spinner typ1;
-	private Button save1;
+	private Button save1, test1, wlan1;
 	
 	private Long mRow;
 	private EventDb mDb; 
@@ -61,6 +61,8 @@ public class EventEdit extends Activity {
 		ext2 = (EditText)findViewById(R.id.editText3);
 		out1 = (EditText)findViewById(R.id.editText4);
 		save1 = (Button)findViewById(R.id.button1);
+		test1= (Button)findViewById(R.id.button2);
+		wlan1 = (Button)findViewById(R.id.button3);
 		
 		// DialogHelper
 		mHelper = new DialogHelper<Event>(this, Event.eventHelper, Event.class)
@@ -81,10 +83,25 @@ public class EventEdit extends Activity {
 		
 		// Klick auf Save bewirkt, dass der Dialog beendet wird
 		save1.setOnClickListener(new View.OnClickListener() {
-			public void onClick(View v) {
-				setResultCode(RESULT_OK);
-			}
-		});
+			public void onClick(View v) { setResultCode(RESULT_OK); } });
+		
+		// Klick auf Test bewirkt, dass der Event an die Dose geschickt wird
+		test1.setOnClickListener(new View.OnClickListener() {
+			public void onClick(View v) { 
+				if (testActive())
+					mHelper.current.fireEvent(EventEdit.this);
+			} });
+
+		// Klick auf WLAN bewirkt, dass der WLAN-Name in EXT1 eingetragen wird
+		wlan1.setOnClickListener(new View.OnClickListener() {
+			public void onClick(View v) { 
+				String w = EventList.getCurrentWLAN();
+				if (w==null)
+					Toast.makeText(EventEdit.this, "nicht in einem WLAN eingebucht", Toast.LENGTH_SHORT).show();
+				else {
+					ext1.setText(w);
+				}
+			} });
 		
 		// Gültigkeit überprüfen
 		active1.setOnCheckedChangeListener(new OnCheckedChangeListener() {
@@ -194,15 +211,17 @@ public class EventEdit extends Activity {
 	}
 
 	
-	public void testActive() {
+	public boolean testActive() {
 		int error = mHelper.error();
 		if (error>0) {
 			active1.setChecked(false);
-			mHelper.current.i[Event.ACTIVE] = 0;
+			mHelper.current.setBoolean(Event.ACTIVE, false);
 			Toast.makeText(getApplicationContext(), 
 					"Event kann nicht aktiviert werden: "+getString(error), 
 					Toast.LENGTH_SHORT).show();
-		}
+			return false;
+		} else
+			return true;
 	}
 	
 	@Override

@@ -1,17 +1,18 @@
 package de.jockels.netioswitch;
 
 import android.app.ListActivity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
-import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -23,24 +24,27 @@ import android.widget.ProgressBar;
 import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleCursorAdapter.ViewBinder;
 import android.widget.TextView;
-import android.widget.Toast;
 import android.widget.ToggleButton;
 import de.jockels.lib.StringTools;
 import de.jockels.netioswitch.Connection.Listener;
 
 /**
  * 
- * TODO Visualisierung des Reloaders z.B. mit Icon am Rand
- * 
  * Stichworte für Artikel
  *  -	in Service gepackt, damit BroadcastReceiver direkt was damit machen können
  *  -	auf den Befehl zum Lesen eines einzelnen Status verzichtet, aber doSwitch kennt beide Varianten
  *  -	das "Asynchrone" steckt im Service. Die Komponenten, die das auswerten, müssen nur ein Listener
  *  	implementieren
+ *  - AsyncTimer hat einen Bug, wenn es über einen Service das erste Mal aufgerufen wird. Daher müssen
+ *  	onCreate oder auch ein BootReceiver einen Workaround ausführen
  *  
  *  Ideen für Intents:
  *  http://developer.android.com/reference/android/content/Intent.html
  *  (ab Summary)
+ *  
+ *  TODO weitere Events
+ *  TODO WLAN-Events erst nach einer gewissen Zeitspanne (ext2)
+ *  TODO visualisieren, ob Events aktiv sind oder nicht
  */
 
 public class NetioActivity extends ListActivity implements SharedPreferences.OnSharedPreferenceChangeListener {
@@ -56,7 +60,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	private ToggleButton[] b = new ToggleButton[4];
 	private Button[] a = new Button[2];
 
-	private Reloader mReloader;
+	private BroadcastReceiver mReloader;
 	
 	public static final int ACTIVITY_CREATE = 0;
 	public static final int ACTIVITY_EDIT = 1;
@@ -66,25 +70,29 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		super.onCreate(savedInstanceState);
 		Log.v(TAG, "onCreate");
 		
-		// Event-Liste erzeugen und anpassen
+		// Oberfläche erzeugen und anpassen
 		setContentView(R.layout.main);
 		registerForContextMenu(getListView());
 		
-		// Bug?!
+		// Workaround für AsyncTask-Bug
 		try { Class.forName("android.os.AsyncTask"); } catch (ClassNotFoundException e) { }
 		
 		// Konfigurationsdatei öffnen
 		mCfg = PreferenceManager.getDefaultSharedPreferences(this);
 		mCfg.registerOnSharedPreferenceChangeListener(this);
-		Log.v(TAG, "onCreate: connection-size: "+ConnectionList.getSize());
-		ConnectionList.addConnection(new Connection(mCfg));
-		Log.v(TAG, "onCreate: connection-size: "+ConnectionList.getSize());
 		
 		// Event-Datenbank öffnen
 		mDb = new EventDb(this);
 		mDb.open();
 		fillData();
-		if (mCfg.getBoolean("autoevent", false)) startEvents();
+
+		// Events starten oder stoppen
+		ConnectionList.initConnections(getApplicationContext());
+		EventList.onCreate(getApplicationContext());
+		EventList.loadEvents();
+		boolean autostart = mCfg.getBoolean("autoevent", false);
+		EventList.switchEvents(autostart, true);
+		EventList.switchBoot(autostart);
 		
 		// Zeiger auf Steuerelement basteln und Knöppe auf inaktiv schalten 
 		id = (TextView)findViewById(R.id.textView0);
@@ -127,7 +135,6 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	
 	@Override protected void onDestroy() {
 		Log.v(TAG, "onDestroy");
-		pauseEvents();
 		commStop();
 		mDb.close();
 		super.onDestroy();
@@ -140,28 +147,22 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	private void commStart() {
 		if (DEBUG) Log.v(TAG, "startComm");
 		commStop();
-		
-		// jetzt Verbindung herstellen
 		setDisable("verbinde mit "+mCfg.getString("ip", "")+" ...");
 		ConnectionList.getConnection(0).setListener(new CommListener());
-		mConnected = true;
-		commStatus();
 
-		// Reloader
+		// Reloader anwerfen
 		int r = StringTools.tryParseInt(mCfg.getString("reload", ""));
 		if (r>0) {
-			// Reloader anwerfen
-			mReloader = new Reloader(r);
-			mReloader.start();
-			// Anzeige
-			reload.setVisibility(View.VISIBLE);
-			reload.setText(r+" s reload");
+			reload.setText("Reload\nalle "+r+" min");
+			mReloader = new ReloadReceiver(r);
+			registerReceiver(mReloader, new IntentFilter(Intent.ACTION_TIME_TICK));
 		} else {
-			mReloader = null;
-			reload.setVisibility(View.GONE);
-			loading.setVisibility(View.GONE);
+			reload.setText("kein Reload");
 		}
-
+		loading.setVisibility(View.GONE);
+		reload.setVisibility(View.VISIBLE);
+		mConnected = true;
+		commStatus();
 	}
 	
 	
@@ -173,16 +174,42 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		if (!mConnected) return;
 		setDisable("Verbindung getrennt");
 		ConnectionList.getConnection(0).clearListener();
+		loading.setVisibility(View.GONE);
 		if (mReloader!=null) {
-			mReloader.stop();
+			unregisterReceiver(mReloader);
 			mReloader = null;
 		}
-		reload.setVisibility(View.GONE);
 		mConnected = false;
 	}
 
+
+	/**
+	 * Steckdose regelmäßig abfragen
+	 */
+	private class ReloadReceiver extends BroadcastReceiver {
+		long mLast;
+		final long mDiff;
+		ReloadReceiver(int m) {
+			mDiff = m*900*60; // m ist in Minuten; abzüglich 10%, falls der Tick mal nicht genau minütlich kommt
+			mLast = 0;
+		}
+		
+		@Override
+		public void onReceive(Context ctx, Intent intent) {
+			long now = System.currentTimeMillis();
+			if (DEBUG) Log.v(TAG, "onReceive Reload diff "+( (now-mLast) / 1000));
+			if (now > mLast+mDiff) {
+				mLast = now;
+				reload.setVisibility(View.GONE);
+				loading.setVisibility(View.VISIBLE);
+				for (ToggleButton i : b) i.setEnabled(false);
+				commStatus();
+			}
+		}
+	}
 	
-	private void commStatus() {
+
+	protected void commStatus() {
 		if (!mConnected) return;
 		Intent i = new Intent(this, CommService.class);
 		i.putExtra(CommService.EXTRA_CONNECTION, 0); 
@@ -213,69 +240,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 
 	
 	/**
-	 * Events starten/stoppen
-	 */
-	private void startEvents() {
-		int c = EventList.refreshEvents(mDb, new Connection(mCfg));
-		int s = EventList.startEvents(this);
-		Toast.makeText(this, c+" Events geladen, davon "+s+" gestartet", Toast.LENGTH_SHORT).show();
-		// TODO ChoiceFormat
-		// http://docs.oracle.com/javase/tutorial/i18n/format/choiceFormat.html
-	}
-	
-	
-	private void stopEvents() {
-		int s = EventList.stopEvents();
-		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
-	}
-
-	
-	private void pauseEvents() {
-		int s = EventList.pauseEvents();
-		Toast.makeText(this, s+" Events angehalten", Toast.LENGTH_SHORT).show();
-	}
-	
-
-	/**
-	 * Klasse zum regelmäßigen Abfragen einer Steckdose
-	 *
-	 */
-	private class Reloader implements Runnable{
-		int mReload;
-		Handler mHandler;
-		Reloader(int r) {
-			super();
-			if (r<5) r = 5;
-			mReload = r*1000;
-			mHandler = new Handler();
-		}
-		
-		public void start() {
-			Log.v(TAG, (mReload/1000)+"s reload started");
-			mHandler.postDelayed(this, mReload);
-		}
-		
-		public void stop() {
-			Log.v(TAG, "reload stopped");
-			mReload = 0;
-			mHandler.removeCallbacks(this);
-		}
-		
-		public void run() {
-			Log.v(TAG, "ticktack");
-			loading.setVisibility(View.VISIBLE);
-			for (ToggleButton i : b) {
-				i.setEnabled(false);
-				i.setChecked(false);
-			}
-			commStatus();
-			if (mReload>0) mHandler.postDelayed(this, mReload);
-		}
-	}
-	
-	
-	/**
-	 * Eventliste zusammenbasteln
+	 * Anzeigeliste zusammenbasteln
 	 */
 	private void fillData() {
 		if (DEBUG) Log.v(TAG, "fillData");
@@ -344,10 +309,10 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 			startActivityForResult(new Intent(this, EventEdit.class), ACTIVITY_CREATE);
 			return true;
 		case R.id.itemStartEvents:
-			startEvents();
+			EventList.startEvents(true);
 			return true;
 		case R.id.itemStopEvents:
-			stopEvents();
+			EventList.stopEvents(true);
 			return true;
 		default:        
 			return super.onOptionsItemSelected(item);    
@@ -360,8 +325,11 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		case R.id.itemEventDel:
 			AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
 			mDb.deleteEvent(info.id);
+			// Liste neu aufbauen
 			fillData();
-			startEvents();
+			// Events laden und ggf. aktivieren
+			EventList.loadEvents();
+			EventList.switchEvents(EventList.isActive(), true);
 			return true;
 		}
 		return super.onContextItemSelected(item);
@@ -371,7 +339,6 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	@Override protected void onListItemClick(ListView l, View v, int position, long id) {
 		super.onListItemClick(l, v, position, id);
 		Log.v(TAG, "onListItemClick");
-		stopEvents();
 		Intent i = new Intent(this, EventEdit.class);
 		i.putExtra(EventDb.ID, id);
 		startActivityForResult(i, ACTIVITY_EDIT);
@@ -381,13 +348,18 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 	@Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		Log.v(TAG, "onActivityResult "+resultCode);
 		super.onActivityResult(requestCode, resultCode, data);
-		fillData();
-		startEvents();
+		if (resultCode==RESULT_OK) {
+			fillData();
+			EventList.loadEvents();
+			EventList.switchEvents(EventList.isActive(), true);
+		}
 	}
 
 
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
 		Log.v(TAG, "onCfgChange");
+		ConnectionList.initConnections(this);
+		EventList.switchBoot(mCfg.getBoolean("autoevent", false));
 		mReconnectNeeded = true;
 	}
 	
@@ -426,7 +398,7 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 		}
 
 		public void onCommand(String command, String result) {
-			if (DEBUG) Log.v(TAG, "onCommand '"+command+"': "+result);
+			// Log.v(TAG, "onCommand '"+command+"': "+result);
 			if (CommService.cAlias.equals(command)) {
 				// Initialisierung erfolgreich, also Namen anzeigen und Knöppe aktivieren
 				String ip = mCfg.getString("ip", "");
@@ -440,7 +412,10 @@ public class NetioActivity extends ListActivity implements SharedPreferences.OnS
 					b[i].setEnabled(true);
 					b[i].setChecked(result.charAt(i)=='1');
 				}
-				if (mReloader!=null) loading.setVisibility(View.GONE);
+				if (mReloader!=null) {
+					loading.setVisibility(View.GONE);
+					reload.setVisibility(View.VISIBLE);
+				}
 				
 			} else if (CommService.cSet.equals(command)) {
 				// keine Aktion
